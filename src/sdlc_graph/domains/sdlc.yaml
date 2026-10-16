@@ -1,0 +1,62 @@
+# Domain pack: software development lifecycle.
+domain: sdlc
+label: Software development lifecycle
+
+stages:
+  - {id: requirement, label: Requirement, next: [design]}
+  - {id: design,      label: Design,      next: [build]}
+  - {id: build,       label: Build,       next: [test]}
+  - {id: test,        label: Test,        next: [release]}
+  - {id: release,     label: Release,     next: [operate]}
+  - {id: operate,     label: Operate,     next: [requirement]}   # feedback loop
+
+# Legal relations between artifacts of different stages. Also the vocabulary for
+# frontmatter keys (`satisfies: [REQ-1]`) and code annotations (`# verifies: REQ-1`).
+flow_relations:
+  - {from: design,      to: requirement, relation: satisfies}
+  - {from: build,       to: design,      relation: implements}
+  - {from: test,        to: build,       relation: verifies}
+  - {from: test,        to: requirement, relation: verifies}
+  - {from: release,     to: build,       relation: ships}
+  - {from: operate,     to: release,     relation: observes}
+  - {from: requirement, to: operate,     relation: motivated_by}
+
+# "Every <stage> artifact (of these kinds) needs an in/out edge of this relation."
+# Optional: `exclude` globs, `min_symbols` (skip trivial files), `include_llm` (LLM-extracted items are skipped by default).
+expectations:
+  - {stage: requirement, kinds: [requirement], needs: satisfies, direction: in, message: "requirement has no design"}
+  - {stage: requirement, kinds: [requirement], needs: verifies,  direction: in, message: "requirement has no test"}
+  - {stage: build,       kinds: [file],        needs: verifies,  direction: in, message: "code file has no test",
+     min_symbols: 1, exclude: ["**/__init__.py", "**/*.config.*", "**/scripts/**", "**/alembic/**", "**/*.sh", "**/setup.py", "**/conftest.py"]}
+
+# Path rules -> stage tags (case-insensitive). Every matching rule adds a tag; `default` applies if none matched.
+classifiers:
+  - {stage: requirement, globs: ["**/requirements/**", "**/specs/**", "**/user-stories/**",
+                                 "**/*roadmap*.md", "**/*todo*.md", "**/*plan*.md", "**/*backlog*.md"]}
+  - {stage: design,      globs: ["**/adr/**", "**/decisions/**", "**/design/**", "**/architecture/**",
+                                 "**/design*.md", "**/*-design*.md", "**/*diagram*.md", "**/claude.md",
+                                 "**/docs/dev/**"]}
+  - {stage: test,        globs: ["**/tests/**", "**/test/**", "**/test_*", "**/*_test.go", "**/*.spec.*",
+                                 "**/*readme-test*.md", "**/*snyk*.md"]}
+  - {stage: release,     globs: ["**/CHANGELOG*", "**/.github/workflows/**", "**/Dockerfile*", "**/release/**",
+                                 "**/*deploy*.md", "**/*ssl*.md", "**/docs/guide/**"]}
+  - {stage: operate,     globs: ["**/runbooks/**", "**/incidents/**", "**/postmortems/**"]}
+  - {stage: build,       default: true}
+
+# Generated / run-time noise that is not part of the development knowledge (gitignore syntax).
+ignore: ["**/docs/research/**", "**/docs/archive/**", "**/docs/outreach/**", "**/docs/images/**", "**/logs/**", "**/logs-*/**", "**/*.log", "**/*.pyc", "**/*.db", "**/*.lock", "**/package-lock.json"]
+
+# Processing layer: which artifact types go through which processor.
+#   ast         graphify tree-sitter extraction (code)
+#   frontmatter markdown files; YAML frontmatter -> typed nodes + explicit edges
+#   annotations `# relation: ID` comments in code files -> explicit edges
+#   llm         graphify's generic semantic extraction (needs --semantic and a backend)
+#   llm_items   this tool's domain prompt: prose -> typed work items (needs --semantic)
+processors:
+  - {name: code,        use: ast}
+  - {name: docs,        use: frontmatter, match: ["**/*.md"]}
+  - {name: annotations, use: annotations, match: ["**/*.py", "**/*.js", "**/*.ts", "**/*.go", "**/*.sql", "**/*.sh"]}
+  # LLM passes (only with --semantic). `llm_items` uses this pack's own prompt: it reads planning/design
+  # prose and extracts work items as INFERRED nodes tagged with this pack's stages.
+  - {name: doc-items,   use: llm_items, kinds: [requirement, decision, task],
+     match: ["**/*roadmap*.md", "**/*todo*.md", "**/*plan*.md", "**/design*.md"], backend: cc_cli}

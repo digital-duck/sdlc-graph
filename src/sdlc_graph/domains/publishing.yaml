@@ -1,0 +1,36 @@
+# Domain pack: publishing (writing -> audience).
+domain: publishing
+label: Publishing
+
+stages:
+  - {id: idea,    label: Idea,    next: [outline]}
+  - {id: outline, label: Outline, next: [draft]}
+  - {id: draft,   label: Draft,   next: [edit]}
+  - {id: edit,    label: Edit,    next: [publish]}
+  - {id: publish, label: Publish, next: [promote]}
+  - {id: promote, label: Promote, next: [idea]}   # audience response seeds new ideas
+
+flow_relations:
+  - {from: outline, to: idea,    relation: expands}
+  - {from: draft,   to: outline, relation: realizes}
+  - {from: edit,    to: draft,   relation: revises}
+  - {from: publish, to: edit,    relation: releases}
+  - {from: promote, to: publish, relation: amplifies}
+  - {from: idea,    to: promote, relation: inspired_by}
+
+expectations:
+  - {stage: idea,  kinds: [idea],  needs: expands,  direction: in, message: "idea was never outlined"}
+  - {stage: draft, kinds: [draft], needs: revises,  direction: in, message: "draft was never edited"}
+  - {stage: edit,  kinds: [edit],  needs: releases, direction: in, message: "edit was never published"}
+
+classifiers:
+  - {stage: idea,    globs: ["**/ideas/**", "**/inbox/**"]}
+  - {stage: outline, globs: ["**/outlines/**"]}
+  - {stage: edit,    globs: ["**/edits/**", "**/reviews/**"]}
+  - {stage: publish, globs: ["**/published/**"]}
+  - {stage: promote, globs: ["**/social/**", "**/newsletter/**", "**/promo/**"]}
+  - {stage: draft,   default: true}
+
+processors:
+  - {name: text,  use: frontmatter, match: ["**/*.md"]}
+  - {name: media, use: llm, match: ["**/*.png", "**/*.jpg", "**/*.mp4", "**/*.pdf"], backend: cc_cli}

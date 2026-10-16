@@ -1,0 +1,3 @@
+domain: research
+projects:
+  - {name: rq-demo, path: .}

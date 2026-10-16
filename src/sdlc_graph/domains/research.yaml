@@ -1,0 +1,38 @@
+# Domain pack: research. Code lives in the experiment stage.
+domain: research
+label: Research
+
+stages:
+  - {id: question,   label: Question,   next: [literature, hypothesis]}
+  - {id: literature, label: Literature, next: [hypothesis]}
+  - {id: hypothesis, label: Hypothesis, next: [experiment]}
+  - {id: experiment, label: Experiment, next: [analysis]}
+  - {id: analysis,   label: Analysis,   next: [writeup]}
+  - {id: writeup,    label: Write-up,   next: [question]}   # findings raise new questions
+
+flow_relations:
+  - {from: literature,  to: question,   relation: informs}
+  - {from: hypothesis,  to: question,   relation: answers}
+  - {from: experiment,  to: hypothesis, relation: tests}
+  - {from: analysis,    to: experiment, relation: analyzes}
+  - {from: writeup,     to: analysis,   relation: reports}
+  - {from: writeup,     to: literature, relation: cites}
+
+expectations:
+  - {stage: question,   kinds: [question],   needs: answers,  direction: in, message: "question has no hypothesis"}
+  - {stage: hypothesis, kinds: [hypothesis], needs: tests,    direction: in, message: "hypothesis has no experiment"}
+  - {stage: experiment, kinds: [file],       needs: analyzes, direction: in, message: "experiment has no analysis"}
+
+classifiers:
+  - {stage: question,   globs: ["**/questions/**"]}
+  - {stage: literature, globs: ["**/papers/**", "**/references/**", "**/literature/**", "**/*.pdf"]}
+  - {stage: hypothesis, globs: ["**/hypotheses/**"]}
+  - {stage: analysis,   globs: ["**/analysis/**", "**/notebooks/**", "**/*.ipynb"]}
+  - {stage: writeup,    globs: ["**/manuscript/**", "**/paper/**"]}
+  - {stage: experiment, default: true}
+
+processors:
+  - {name: code,        use: ast}
+  - {name: notes,       use: frontmatter, match: ["**/*.md"]}
+  - {name: annotations, use: annotations, match: ["**/*.py", "**/*.R", "**/*.sh", "**/*.sql"]}
+  - {name: papers,      use: llm, match: ["**/*.pdf"], backend: cc_cli}
