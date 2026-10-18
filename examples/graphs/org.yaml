@@ -1,0 +1,43 @@
+schema: work-graph/1
+layer: org
+nodes:
+  - id: org:acme
+    uid: '95911588'
+    kind: company
+    label: Acme Corp
+  - id: org:acme/engineering
+    uid: d09977ae
+    kind: division
+    label: Engineering
+  - id: org:acme/engineering/commerce
+    uid: 75a7fe18
+    kind: department
+    label: Commerce
+  - id: org:acme/engineering/commerce/payments
+    uid: 80046ca0
+    kind: team
+    label: Payments team
+  - id: org:acme/engineering/commerce/payments/dana
+    uid: 256a04d7
+    kind: person
+    label: Dana (tech lead)
+  - id: org:acme/engineering/research
+    uid: 40b58539
+    kind: department
+    label: Research
+edges:
+  - source: org:acme/engineering
+    relation: part_of
+    target: org:acme
+  - source: org:acme/engineering/commerce
+    relation: part_of
+    target: org:acme/engineering
+  - source: org:acme/engineering/commerce/payments
+    relation: part_of
+    target: org:acme/engineering/commerce
+  - source: org:acme/engineering/commerce/payments/dana
+    relation: part_of
+    target: org:acme/engineering/commerce/payments
+  - source: org:acme/engineering/research
+    relation: part_of
+    target: org:acme/engineering

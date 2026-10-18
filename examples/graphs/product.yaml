@@ -1,0 +1,31 @@
+schema: work-graph/1
+layer: product
+nodes:
+  - id: product:acme/retail
+    uid: ab2e727d
+    kind: family
+    label: Retail products
+  - id: product:acme/retail/shop
+    uid: b6976f29
+    kind: product
+    label: Shop
+  - id: product:acme/retail/shop/checkout
+    uid: f3181c4e
+    kind: application
+    label: Checkout service
+edges:
+  - source: product:acme/retail/shop
+    relation: part_of
+    target: product:acme/retail
+  - source: product:acme/retail/shop/checkout
+    relation: part_of
+    target: product:acme/retail/shop
+  - source: project:acme-shop
+    relation: belongs_to
+    target: product:acme/retail/shop/checkout
+  - source: product:acme/retail/shop
+    relation: owned_by
+    target: org:acme/engineering/commerce/payments
+  - source: product:acme/retail/shop
+    relation: follows
+    target: process:sdlc

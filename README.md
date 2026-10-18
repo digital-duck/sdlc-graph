@@ -189,6 +189,8 @@ work-graph domains                                     # list domain packs
 work-graph build -c examples/workspace.yaml            # build the graph, write work-graph-out/graph.json
 work-graph gaps  -c examples/workspace.yaml            # report gaps per domain rules
 work-graph clones -c examples/workspace.yaml           # files shared across projects
+work-graph check -c examples/workspace.yaml            # validate the org/product layer files and cross-graph references
+work-graph convert examples/graphs/product.json        # JSON <-> YAML, YAML comments kept in the store
 work-graph open --semantic --adapter cc_cli -c examples/acme-shop/workspace.yaml   # open work items via the LLM pass
 python -m pytest
 ```
@@ -237,15 +239,15 @@ src/work_graph/
 examples/          # acme-shop (sdlc), rq-demo (research), workspace.yaml (both)
 ```
 
-Planned modules for the multi-graph vision (not built yet):
+Multi-graph modules (design in [docs/DEV/README-design.md](docs/DEV/README-design.md)):
 
 ```
 src/work_graph/
-  refs.py          # namespaced IDs, reference + sub-graph resolution into one in-memory graph
-  schema.py        # JSON schema and referential-integrity validation per layer
-  convert.py       # JSON <-> YAML converters (lossless for graph content)
-  store.py         # SQLite: graph-file registry + comment store, restores comments on JSON -> YAML
-  domains/         # packs for the product, org and process layers
+  schema.py        # layers, kinds, relation rules, validation of layer files
+  refs.py          # load layer files, expand /** sub-graph references, merge into the build graph
+  convert.py       # JSON <-> YAML converters; harvests and re-attaches YAML comments
+  store.py         # SQLite: graph-file registry, comment store, uid history for rename detection
+examples/graphs/   # org and product layer files (JSON canonical, YAML for review)
 ```
 
 ## Hackathon scope
@@ -257,21 +259,21 @@ src/work_graph/
 - [x] Persist the graph (`graph.json`); reload is not implemented yet
 - [ ] `ask` command: seed → expand → LLM answer with cited nodes
 - [ ] Interactive graph visualization
-- [ ] Graph references: namespaced IDs, resolved in memory at load time, with broken-reference reporting across graphs
-- [ ] Product layer (thin): a repo `belongs_to` a product, and a product `follows` a process template
+- [x] Graph references: namespaced IDs, resolved in memory at load time, with broken-reference reporting across graphs
+- [x] Product layer (thin): a repo `belongs_to` a product, and a product `follows` a process template
 
 **Should have**
-- [ ] Dual formats: JSON (canonical, schema and referential-integrity validation) and YAML (review and audit), with converters both ways
-- [ ] Comment store: SQLite registry of graph files that saves YAML comments by anchor and restores them on JSON -> YAML
-- [ ] Sub-graph addressing (a node plus its descendants) for querying and export
-- [ ] Process layer: reusable process templates (such as stakeholder interview through feedback), separate from per-product instances
+- [x] Dual formats: JSON (canonical, schema and referential-integrity validation) and YAML (review and audit), with converters both ways
+- [x] Comment store: SQLite registry of graph files that saves YAML comments by anchor and restores them on JSON -> YAML
+- [x] Sub-graph addressing (a node plus its descendants) for querying and export
+- [x] Process layer: reusable process templates (such as stakeholder interview through feedback), separate from per-product instances
 - [ ] Git history ingestion (commits ↔ files ↔ issues)
 - [ ] LLM-proposed edges with accept/reject review
 - [ ] Traceability and coverage-gap reports (requirement → code → test)
 - [ ] Impact analysis ("what depends on this?")
 
 **Stretch**
-- [ ] Org layer (company > division > department > group > team > person), kept optional and separable because of privacy
+- [x] Org layer (company > division > department > group > team > person), kept optional and separable because of privacy
 - [ ] Watch mode: incrementally update the graph as files change
 - [ ] Editor/MCP integration so coding assistants can query the graph
 - [ ] Multi-language code parsing via tree-sitter

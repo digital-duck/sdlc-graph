@@ -1,0 +1,51 @@
+{
+  "schema": "work-graph/1",
+  "layer": "product",
+  "nodes": [
+    {
+      "id": "product:acme/retail",
+      "kind": "family",
+      "label": "Retail products",
+      "uid": "ab2e727d"
+    },
+    {
+      "id": "product:acme/retail/shop",
+      "kind": "product",
+      "label": "Shop",
+      "uid": "b6976f29"
+    },
+    {
+      "id": "product:acme/retail/shop/checkout",
+      "kind": "application",
+      "label": "Checkout service",
+      "uid": "f3181c4e"
+    }
+  ],
+  "edges": [
+    {
+      "source": "product:acme/retail/shop",
+      "target": "product:acme/retail",
+      "relation": "part_of"
+    },
+    {
+      "source": "product:acme/retail/shop/checkout",
+      "target": "product:acme/retail/shop",
+      "relation": "part_of"
+    },
+    {
+      "source": "project:acme-shop",
+      "target": "product:acme/retail/shop/checkout",
+      "relation": "belongs_to"
+    },
+    {
+      "source": "product:acme/retail/shop",
+      "target": "org:acme/engineering/commerce/payments",
+      "relation": "owned_by"
+    },
+    {
+      "source": "product:acme/retail/shop",
+      "target": "process:sdlc",
+      "relation": "follows"
+    }
+  ]
+}

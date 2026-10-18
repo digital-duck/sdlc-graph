@@ -20,6 +20,8 @@ work-graph domains
 work-graph build -c examples/workspace.yaml          # writes work-graph-out/graph.json
 work-graph gaps  -c examples/workspace.yaml
 work-graph clones -c examples/workspace.yaml
+work-graph check -c examples/workspace.yaml          # layer files + cross-graph references
+work-graph convert examples/graphs/org.json          # JSON <-> YAML via the comment store
 work-graph open --semantic --adapter cc_cli -c examples/acme-shop/workspace.yaml   # LLM work items
 work-graph llm -c workspace.yaml       # resolved backend / billing / readiness per processor
 ```
@@ -38,5 +40,7 @@ Pipeline (`src/work_graph/pipeline.py::build_workspace`): for each project in a 
 - `analyze.py::find_gaps` evaluates pack `expectations` as graph queries (plus broken references); `cli.py` is the argparse entry point (`work_graph.cli:main`).
 
 `examples/acme-shop` (sdlc) and `examples/rq-demo` (research) contain deliberate gaps that tests and demos rely on; changing them can break tests.
+
+**Layers** (design: `docs/DEV/README-design.md`): besides the repo graph, `graphs/*.json` next to the workspace file hold org/product/process layers (`schema.py` validates; ids are `<layer>:<path>`, nodes carry a `uid` used only for rename hints). `refs.merge_layers` runs at the end of `build_workspace`: it adds `process:<domain>` nodes from the packs, resolves cross-layer edges (including `/**` sub-graph endpoints) and tags every node with `layer`. JSON is canonical and what the loader reads; YAML is for review. `convert.py` moves between them, saving YAML comments in `graphs/store.sqlite` (`store.py`) anchored by item id so they are restored on JSON -> YAML.
 
 Further docs: `docs/GUIDE/SETUP.md` (install, backends, troubleshooting) and `docs/GUIDE/USER-GUIDE.md` (workspace files, linking conventions, customizing packs).

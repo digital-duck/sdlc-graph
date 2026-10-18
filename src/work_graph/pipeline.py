@@ -11,6 +11,8 @@ from graphify.cluster import cluster
 from .domain import STRUCTURAL_KINDS, Project, Workspace, make_id
 from .links import cross_project_links
 from .processors import run_processors
+from .refs import merge_layers
+from .store import Store
 
 STRUCTURAL_RELATIONS = {"imports", "imports_from", "calls", "uses", "references"}
 
@@ -150,6 +152,10 @@ def build_workspace(ws: Workspace, *, semantic: bool = False) -> tuple[nx.MultiD
     M = nx.MultiDiGraph(G)  # multi-edges: a structural edge and a flow edge can join the same pair
     derive_flow_edges(M, ws)
     M.graph["clones"] = cross_project_links(M, ws)
+    store = Store(ws.graphs_dir / "store.sqlite") if ws.graphs_dir and (ws.graphs_dir / "store.sqlite").exists() else None
+    warnings += merge_layers(M, ws, store)
+    if store:
+        store.close()
     return M, communities, warnings
 
 

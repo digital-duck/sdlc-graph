@@ -142,6 +142,7 @@ class Project:
 @dataclass
 class Workspace:
     projects: list[Project]
+    graphs_dir: Path | None = None   # layer files (product, org, process), see docs/DEV/README-design.md
 
     @property
     def domains(self) -> dict[str, Domain]:
@@ -159,4 +160,5 @@ class Workspace:
             cache.setdefault(dn, Domain.load(dn))
             projects.append(Project(p["name"], (path.parent / p["path"]).resolve(), cache[dn],
                                     p.get("backend", raw.get("backend")), p.get("ignore", [])))
-        return cls(projects)
+        graphs = path.parent / raw["graphs"] if raw.get("graphs") else path.parent / "graphs"
+        return cls(projects, graphs.resolve() if graphs.is_dir() else None)

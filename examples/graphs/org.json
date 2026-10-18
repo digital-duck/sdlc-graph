@@ -1,0 +1,69 @@
+{
+  "schema": "work-graph/1",
+  "layer": "org",
+  "nodes": [
+    {
+      "id": "org:acme",
+      "kind": "company",
+      "label": "Acme Corp",
+      "uid": "95911588"
+    },
+    {
+      "id": "org:acme/engineering",
+      "kind": "division",
+      "label": "Engineering",
+      "uid": "d09977ae"
+    },
+    {
+      "id": "org:acme/engineering/commerce",
+      "kind": "department",
+      "label": "Commerce",
+      "uid": "75a7fe18"
+    },
+    {
+      "id": "org:acme/engineering/commerce/payments",
+      "kind": "team",
+      "label": "Payments team",
+      "uid": "80046ca0"
+    },
+    {
+      "id": "org:acme/engineering/commerce/payments/dana",
+      "kind": "person",
+      "label": "Dana (tech lead)",
+      "uid": "256a04d7"
+    },
+    {
+      "id": "org:acme/engineering/research",
+      "kind": "department",
+      "label": "Research",
+      "uid": "40b58539"
+    }
+  ],
+  "edges": [
+    {
+      "source": "org:acme/engineering",
+      "target": "org:acme",
+      "relation": "part_of"
+    },
+    {
+      "source": "org:acme/engineering/commerce",
+      "target": "org:acme/engineering",
+      "relation": "part_of"
+    },
+    {
+      "source": "org:acme/engineering/commerce/payments",
+      "target": "org:acme/engineering/commerce",
+      "relation": "part_of"
+    },
+    {
+      "source": "org:acme/engineering/commerce/payments/dana",
+      "target": "org:acme/engineering/commerce/payments",
+      "relation": "part_of"
+    },
+    {
+      "source": "org:acme/engineering/research",
+      "target": "org:acme/engineering",
+      "relation": "part_of"
+    }
+  ]
+}

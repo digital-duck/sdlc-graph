@@ -12,6 +12,7 @@ from .analyze import find_gaps
 from .domain import Domain, Workspace, available_domains
 from .llm import BILLING, check_backend, resolve_backend
 from .pipeline import build_workspace, stage_summary
+from .refs import assign_uids, layer_summary, load_layers, merge_layers, missing_uids, stale_notes
 
 
 def _build(args):
@@ -80,6 +81,9 @@ def cmd_build(args) -> None:
         print(f"[{dom}]")
         for s in ws.domains[dom].stages:
             print(f"  {s:<12} {stages.get(s, {})}")
+    layers = layer_summary(M)
+    if len(layers) > 1:
+        print("layers: " + ", ".join(f"{k} {v}" for k, v in sorted(layers.items())))
     clones = M.graph.get("clones", [])
     if clones:
         print(f"cross-project: {sum(g['identical'] for g in clones)} identical, "
@@ -90,6 +94,48 @@ def cmd_build(args) -> None:
     out.mkdir(exist_ok=True)
     (out / "graph.json").write_text(json.dumps(nx.node_link_data(M, edges="edges"), default=str), encoding="utf-8")
     print(f"wrote {out / 'graph.json'}")
+
+
+def cmd_check(args) -> None:
+    """Validate the layer files and every cross-graph reference; report renames, stale YAML, missing uids."""
+    from .store import Store
+    ws = Workspace.load(args.config)
+    if not ws.graphs_dir:
+        raise SystemExit("work-graph: no graphs directory (add `graphs: <dir>` to the workspace file)")
+    if args.assign_uids:
+        print(f"assigned {assign_uids(ws.graphs_dir)} uids")
+    with Store(ws.graphs_dir / "store.sqlite") as store:
+        docs, errors = load_layers(ws.graphs_dir)
+        for name, doc in docs.items():
+            store.remember_ids(doc["layer"], doc["nodes"])
+        M, _, warnings = build_workspace(ws)
+        merge_problems = [w for w in warnings if w.split(":")[0].endswith(".json")]
+        notes = stale_notes(ws.graphs_dir, store) + missing_uids(docs)
+    problems = errors + [w for w in merge_problems if w not in errors]
+    for p in problems:
+        print(f"error: {p}")
+    for n in dict.fromkeys(notes):
+        print(f"note: {n}")
+    print(f"{len(docs)} layer files, {sum(len(d['nodes']) for d in docs.values())} nodes, "
+          f"{sum(len(d['edges']) for d in docs.values())} edges; {len(problems)} errors, {len(set(notes))} notes")
+    if problems:
+        raise SystemExit(1)
+
+
+def cmd_convert(args) -> None:
+    """JSON <-> YAML for a layer file; YAML comments are saved in, and restored from, the SQLite store."""
+    from .convert import json_to_yaml, yaml_to_json
+    from .store import Store
+    src = Path(args.file)
+    if src.suffix not in (".json", ".yaml", ".yml"):
+        raise SystemExit("work-graph: convert takes a .json or .yaml file")
+    to_json = src.suffix != ".json"
+    dst = Path(args.out) if args.out else src.with_suffix(".json" if to_json else ".yaml")
+    with Store(args.db or src.parent / "store.sqlite") as store:
+        info = (yaml_to_json if to_json else json_to_yaml)(src, dst, store)
+    msg = f"wrote {dst} ({info['comments']} comments saved)" if to_json else \
+        f"wrote {dst} ({info['comments']} comments restored" + (f", {info['orphans']} orphaned" if info["orphans"] else "") + ")"
+    print(msg)
 
 
 def cmd_clones(args) -> None:
@@ -133,6 +179,15 @@ def cmd_gaps(args) -> None:
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(prog="work-graph")
     sub = ap.add_subparsers(dest="cmd", required=True)
+    s = sub.add_parser("check", help="validate layer files and cross-graph references")
+    s.add_argument("-c", "--config", default="workspace.yaml")
+    s.add_argument("--assign-uids", action="store_true", help="write a uid into layer nodes that lack one")
+    s.set_defaults(fn=cmd_check)
+    s = sub.add_parser("convert", help="convert a layer file between JSON and YAML, keeping YAML comments")
+    s.add_argument("file")
+    s.add_argument("-o", "--out")
+    s.add_argument("--db", help="comment store (default: store.sqlite next to the file)")
+    s.set_defaults(fn=cmd_convert)
     sub.add_parser("domains", help="list domain packs").set_defaults(fn=cmd_domains)
     sub.add_parser("doctor", help="show python/environment/graphify details and warn about conda base").set_defaults(fn=cmd_doctor)
     s = sub.add_parser("llm", help="show the resolved LLM backend per processor and check readiness")
