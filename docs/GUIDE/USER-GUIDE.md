@@ -336,10 +336,10 @@ Keyword search ranks matches in a node's name above matches in its path, summary
 
 Two Claude Code hooks turn the graph into persistent memory for your sessions. Install them one of two ways (not both, or the hooks run twice):
 
-```
-# A. the plugin: hooks plus the command /workgraph:workgraph
-/plugin marketplace add digital-duck/work-graph
-/plugin install workgraph@workgraph
+```bash
+# A. the plugin: hooks plus the command /workgraph:workgraph.
+#    Not published to a marketplace yet (it is still being tested); to try it from a clone:
+claude --plugin-dir <path to this repo>/plugin
 ```
 
 ```bash

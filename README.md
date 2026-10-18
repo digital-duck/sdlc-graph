@@ -39,7 +39,7 @@ Chat history and context windows are temporary, and each new session starts cold
 - **Human in the loop.** LLM-proposed nodes and edges are marked `INFERRED` until a person confirms them in the YAML review format. Agents and people read and write the same artifacts.
 - **Tool-neutral.** Any LLM or coding agent can use the same files, whether it is Claude Code, another assistant or a script. Nothing depends on one tool's private memory.
 
-This is the same graph-first approach as ConceptBook (a book as a graph) and Graph-Code (a blueprint as a graph), applied to the software development process itself. The wider vision is in [zinets/README-graph-vision.md](../zinets/README-graph-vision.md).
+This is the same graph-first approach as ConceptBook (a book as a graph) and Graph-Code (a blueprint as a graph), applied to the software development process itself. The wider vision is in `README-graph-vision.md` in the ZiNets repository.
 
 ### Search and review
 
@@ -53,12 +53,7 @@ Two Claude Code hooks (installed by the `workgraph` plugin or `workgraph claude-
 
 The database never leaves the machine. What cannot be rebuilt (layer files, YAML comments, the portable workspace) travels as text: `workgraph export` / `import` for a first setup by USB, then `workgraph sync push` / `pull` through a **private** GitHub repository. Exports and pushes are scanned and stop on databases, large files or anything shaped like a key; the org layer, session journal and LLM cache are opt-in. See the User Guide, "Moving to another machine".
 
-```
-/plugin marketplace add digital-duck/work-graph
-/plugin install workgraph@workgraph
-```
-
-The plugin adds the hooks and the command `/workgraph:workgraph`. If you prefer the plain name `/workgraph`, run `workgraph claude-setup --write` instead (use one route or the other, not both).
+`workgraph claude-setup --write` installs the hooks and the `/workgraph` command into your user-level Claude Code settings. The same pieces also exist as a Claude Code plugin in `plugin/`, which is **not published to a marketplace yet** while it is being tested; to try it from a clone, run `claude --plugin-dir <path>/plugin`. Use one route or the other, not both.
 
 ### Multiple graphs
 
@@ -193,9 +188,9 @@ Python 3.10+ (conda env), NetworkX, graphify (PyPI release), PyYAML. LLM backend
 
 ## Documentation
 
-- [zinets/README-graph-vision.md](../zinets/README-graph-vision.md): the graph-first vision across the ZiNets ecosystem (ConceptBook, Graph-Code, and this project) and why a declarative graph is the common intermediate representation
-- [docs/GUIDE/SETUP.md](docs/GUIDE/SETUP.md): installation, `cc_cli` (subscription) and Bedrock setup, troubleshooting
-- [docs/GUIDE/USER-GUIDE.md](docs/GUIDE/USER-GUIDE.md): getting started, workspace files, linking conventions, commands, customizing domain packs
+- `README-graph-vision.md` in the ZiNets repository: the graph-first vision across the ZiNets ecosystem (ConceptBook, Graph-Code, and this project) and why a declarative graph is the common intermediate representation
+- [docs/GUIDE/SETUP.md](https://github.com/digital-duck/work-graph/blob/main/docs/GUIDE/SETUP.md): installation, `cc_cli` (subscription) and Bedrock setup, troubleshooting
+- [docs/GUIDE/USER-GUIDE.md](https://github.com/digital-duck/work-graph/blob/main/docs/GUIDE/USER-GUIDE.md): getting started, workspace files, linking conventions, commands, customizing domain packs
 
 ## Quickstart
 
@@ -259,7 +254,7 @@ src/workgraph/
 examples/          # acme-shop (sdlc), rq-demo (research), workspace.yaml (both)
 ```
 
-Multi-graph modules (design in [docs/DEV/README-design.md](docs/DEV/README-design.md)):
+Multi-graph modules (design in [docs/DEV/README-design.md](https://github.com/digital-duck/work-graph/blob/main/docs/DEV/README-design.md)):
 
 ```
 src/workgraph/
@@ -276,7 +271,7 @@ src/workgraph/
   query.py         # load, keyword search, semantic search (ollama / sentence-transformers / TF-IDF), neighbourhoods
   ui/app.py        # Streamlit app (`workgraph ui`)
   data/            # packaged copy of the /workgraph command
-plugin/            # Claude Code plugin: hooks + the /workgraph command (marketplace file: .claude-plugin/)
+plugin/            # Claude Code plugin: hooks + the /workgraph command (not published; draft marketplace file in docs/DEV/)
 examples/graphs/   # org and product layer files (JSON canonical, YAML for review)
 ```
 
@@ -334,8 +329,8 @@ examples/graphs/   # org and product layer files (JSON canonical, YAML for revie
 - [graaph.org](https://graaph.org/) for the inspiration
 - [NetworkX](https://networkx.org/)
 - [graphify](https://github.com/Graphify-Labs/graphify), the engine under this project
-- The ZiNets graph-first vision: [zinets/README-graph-vision.md](../zinets/README-graph-vision.md)
+- The ZiNets graph-first vision: `README-graph-vision.md` in the ZiNets repository
 
 ## License
 
-Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE).
+Licensed under the Apache License, Version 2.0. See [LICENSE](https://github.com/digital-duck/work-graph/blob/main/LICENSE).

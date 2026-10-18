@@ -33,7 +33,7 @@ Legend: **built** = implemented and covered by tests or a live run; **partial** 
 | Search | TF-IDF fallback, labelled as lexical | built | tests |
 | UI | Streamlit app (`workgraph ui`): overview, search, browse, gaps, node panel | built | headless app tests and a server health check; not looked at in a browser by the author |
 | Claude Code | Hooks `session-start` / `session-end`: track project, journal, context summary, background rebuild | built | tests with simulated payloads; headless Claude sessions |
-| Claude Code | Plugin (`plugin/`, marketplace file) and the `/workgraph` command | built | `claude plugin validate`; command run in real headless sessions via `--plugin-dir` and as a project command. Marketplace install not tried (repo not pushed with the plugin) |
+| Claude Code | Plugin (`plugin/`) and the `/workgraph` command | built, **held back** | `claude plugin validate`; command run in real headless sessions via `--plugin-dir` and as a project command. Deliberately not published: no marketplace file in the repo (the draft is `docs/DEV/marketplace.draft.json`) until the owner finishes testing |
 | Claude Code | `claude-setup --write` (hooks and the plain `/workgraph` command into `~/.claude`) | built | tests on temporary files; never run against the real `~/.claude` |
 | Claude Code | Memory files as `memory` nodes (processor `claude_memory`) | built | test; live: a project's 9 memory files found by `search` |
 | Claude Code | `import-claude`: track the projects Claude Code worked in; session metadata (and optional titles) into the journal | built | tests; live on this machine in a scratch home: 42 folders, 65 sessions. Dry run by default; message text is never stored |
@@ -216,7 +216,7 @@ src/workgraph/
   query.py         # load, keyword and semantic search, neighbourhoods, gaps
   ui/app.py        # Streamlit app
   data/            # packaged copy of the /workgraph command (kept identical to plugin/commands/workgraph.md)
-plugin/            # Claude Code plugin; marketplace file in .claude-plugin/
+plugin/            # Claude Code plugin (held back; draft marketplace file in docs/DEV/)
 ```
 
 `pipeline.build_workspace` calls `refs.merge_layers` after the repo graph is built and clustered. Clustering and gap analysis are unchanged: layer nodes are added after clustering, and gap analysis skips nodes that do not belong to a domain pack.
@@ -239,7 +239,7 @@ plugin/            # Claude Code plugin; marketplace file in .claude-plugin/
 
 - **Search** (`query.py`). One document per non-structural node: label, kind, stages, project, path, summary and the first 1,500 characters of its file. Keyword search is a small weighted scorer (label > path/id > summary > body, idf, prefix matches, quoted phrases). Semantic search is `auto` = ollama embeddings, else sentence-transformers, else TF-IDF; the fallback is reported as lexical, never presented as meaning. Embeddings are cached by content hash in `<home>/cache/embeddings`.
 - **UI.** Streamlit app launched by `workgraph ui`: Overview, Search, Browse, Gaps, and a node panel (attributes, links, Graphviz neighbourhood). It reads `graph.json` only.
-- **Plugin.** `plugin/` carries the two hooks and the `/workgraph` command; `.claude-plugin/marketplace.json` lets `/plugin marketplace add digital-duck/work-graph` find it. Plugin commands are namespaced by Claude Code, so the plain `/workgraph` is installed as a user command by `claude-setup --write`. Use one route or the other.
+- **Plugin.** `plugin/` carries the two hooks and the `/workgraph` command; A marketplace file would let `/plugin marketplace add digital-duck/work-graph` find it, so it is **withheld** (draft in `docs/DEV/marketplace.draft.json`) until testing is done. Plugin commands are namespaced by Claude Code, so the plain `/workgraph` is installed as a user command by `claude-setup --write`. Use one route or the other.
 - **Not done.** An MCP server (Claude calling `search`/`show` as tools instead of through Bash), an interactive whole-graph visualization, and saving search results as reviewed links.
 
 ## 12. Ingesting existing Claude Code memory and history (built)

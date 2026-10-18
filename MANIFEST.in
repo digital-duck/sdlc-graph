@@ -1,0 +1,8 @@
+include README.md LICENSE
+graft docs
+graft examples
+graft plugin
+graft tests
+global-exclude *.pyc __pycache__ *.sqlite *.sqlite3 *.sqlite-* *.db .DS_Store
+prune examples/*/graphify-out
+prune graphify-out

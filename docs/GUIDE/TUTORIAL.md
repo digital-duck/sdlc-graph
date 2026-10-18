@@ -434,12 +434,9 @@ The app opens at `http://localhost:8501` with four tabs: **Overview** (counts pe
 
 You don't have to run `build` by hand for every project. Two Claude Code hooks make workgraph the memory of your sessions:
 
-```
-/plugin marketplace add digital-duck/work-graph
-/plugin install workgraph@workgraph
-```
+The supported route today is `workgraph claude-setup --write`, which installs the two hooks and the plain command `/workgraph`: it merges the hooks into `~/.claude/settings.json` (keeping a `.bak` copy) and adds `~/.claude/commands/workgraph.md`. `workgraph claude-setup` without `--write` just prints what it would do.
 
-That installs the plugin in `plugin/`: the two hooks, and the command `/workgraph:workgraph` (Claude Code puts the plugin name in front of plugin commands). If you prefer the plain `/workgraph`, use `workgraph claude-setup --write` instead, which merges the hooks into `~/.claude/settings.json` (keeping a `.bak` copy) and adds `~/.claude/commands/workgraph.md`. Use one route or the other, not both. `workgraph claude-setup` without `--write` just prints what it would do.
+The same hooks and command also exist as a Claude Code plugin in `plugin/` (the command is then `/workgraph:workgraph`, because Claude Code puts the plugin name in front of plugin commands). The plugin is not published to a marketplace yet while it is tested; from a clone you can try it with `claude --plugin-dir <path>/plugin`. Use one route or the other, not both.
 
 After that, when you start `claude` in a project:
 

@@ -272,10 +272,10 @@ def cmd_claude_setup(args) -> None:
     import json
     from .claude_code import hook_settings, install_command, install_hooks
     if not args.write:
-        print("Option A, the plugin (hooks + /workgraph:workgraph):  /plugin marketplace add digital-duck/work-graph\n"
-              "                                                      /plugin install workgraph@workgraph\n")
-        print("Option B, plain settings (hooks + /workgraph). Add this to ~/.claude/settings.json,\n"
-              "or run `workgraph claude-setup --write` to merge it and install the command. Use A or B, not both:\n")
+        print("Plain settings (hooks + the /workgraph command). Add this to ~/.claude/settings.json,\n"
+              "or run `workgraph claude-setup --write` to merge it and install the command.\n"
+              "(A plugin version exists in plugin/ but is not published yet; try it with `claude --plugin-dir <repo>/plugin`.\n"
+              "Use the plugin or these settings, not both.)\n")
         print(json.dumps(hook_settings(), indent=2))
         return
     path = Path(args.settings).expanduser()

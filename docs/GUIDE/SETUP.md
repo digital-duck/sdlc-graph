@@ -173,10 +173,10 @@ Everything lives in one **home folder**, `~/workgraph` by default. Set `WORKGRAP
 
 This is what turns workgraph into a knowledge layer for Claude Code: your projects are tracked as you open them, each session starts with a summary of what the graph knows, and `/workgraph` queries it. Pick **one** route:
 
-```
-# A. the plugin (hooks + /workgraph:workgraph); run inside Claude Code
-/plugin marketplace add digital-duck/work-graph
-/plugin install workgraph@workgraph
+```bash
+# A. the plugin (hooks + /workgraph:workgraph). NOT published to a marketplace yet while it is tested;
+#    to try it from a clone, start Claude Code with the plugin folder:
+claude --plugin-dir <path to this repo>/plugin
 ```
 
 ```bash
