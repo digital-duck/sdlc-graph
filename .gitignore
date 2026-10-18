@@ -219,5 +219,5 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-sdlc-graph-out/
+work-graph-out/
 graphify-out/

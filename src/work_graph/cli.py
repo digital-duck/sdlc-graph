@@ -60,7 +60,7 @@ def cmd_doctor(args) -> None:
         ("python", f"{sys.version.split()[0]} at {sys.executable}", True),
         ("environment", str(prefix), not base_like),
         ("graphify", f"{md.version('graphifyy')} ({'editable fork at ' + str(gpath.parent) if editable else 'PyPI release'})", True),
-        ("sdlc-graph", md.version("sdlc-graph"), True),
+        ("work-graph", md.version("work-graph"), True),
         ("clustering", cluster, True),
         ("default LLM backend", resolve_backend(None), True),
     ]
@@ -131,7 +131,7 @@ def cmd_gaps(args) -> None:
 
 
 def main(argv: list[str] | None = None) -> None:
-    ap = argparse.ArgumentParser(prog="sdlc-graph")
+    ap = argparse.ArgumentParser(prog="work-graph")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("domains", help="list domain packs").set_defaults(fn=cmd_domains)
     sub.add_parser("doctor", help="show python/environment/graphify details and warn about conda base").set_defaults(fn=cmd_doctor)
@@ -146,19 +146,19 @@ def main(argv: list[str] | None = None) -> None:
         s.add_argument("-c", "--config", default="workspace.yaml")
         s.add_argument("--adapter", help="LLM backend, e.g. cc_cli (subscription) or bedrock; overrides config")
         s.add_argument("--semantic", action="store_true", help="also run LLM processors (needs a backend/API key)")
-        s.add_argument("-o", "--out", default="sdlc-graph-out")
+        s.add_argument("-o", "--out", default="work-graph-out")
         s.set_defaults(fn=fn)
     args = ap.parse_args(argv)
     if getattr(args, "adapter", None):
         try:
             resolve_backend(args.adapter)                   # fail fast on a typo
         except ValueError as e:
-            raise SystemExit(f"sdlc-graph: {e}")
-        os.environ["SDLC_GRAPH_BACKEND"] = args.adapter     # same effect as exporting it
+            raise SystemExit(f"work-graph: {e}")
+        os.environ["WORK_GRAPH_BACKEND"] = args.adapter     # same effect as exporting it
     try:
         args.fn(args)
     except (ValueError, RuntimeError, FileNotFoundError) as e:
-        raise SystemExit(f"sdlc-graph: {e}")
+        raise SystemExit(f"work-graph: {e}")
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 import pytest
 
-from sdlc_graph.domain import Domain, available_domains
+from work_graph.domain import Domain, available_domains
 
 
 def test_all_packs_load_and_are_consistent():

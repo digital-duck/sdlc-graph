@@ -3,10 +3,11 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "sdlc-graph"
+name = "work-graph"
 version = "0.0.1"
 description = "SDLC-aware personal knowledge graph assistant, built on graphify and NetworkX"
 readme = "README.md"
+license = {text = "Apache-2.0"}
 requires-python = ">=3.10"
 dependencies = [
     "graphifyy>=0.7.19",
@@ -21,10 +22,10 @@ leiden = ["graspologic; python_version < '3.13'"]
 dev = ["pytest"]
 
 [project.scripts]
-sdlc-graph = "sdlc_graph.cli:main"
+work-graph = "work_graph.cli:main"
 
 [tool.setuptools.package-data]
-sdlc_graph = ["domains/*.yaml"]
+work_graph = ["domains/*.yaml"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

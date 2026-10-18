@@ -189,7 +189,7 @@ _MAX_DOC_CHARS, _MAX_ITEMS = 24_000, 40
 
 
 def _cache_dir() -> Path:
-    d = Path(os.environ.get("SDLC_GRAPH_CACHE", "sdlc-graph-out/cache"))
+    d = Path(os.environ.get("WORK_GRAPH_CACHE", "work-graph-out/cache"))
     d.mkdir(parents=True, exist_ok=True)
     return d
 
@@ -210,7 +210,7 @@ def p_llm_items(project: Project, files: list[Path], proc: Processor) -> dict:
     """Domain-prompted extraction: prose docs -> typed work items (INFERRED, origin=llm).
 
     Uses graphify's backend dispatcher (`_call_llm`) but our own prompt, built from the domain pack's
-    vocabulary. Results are cached by prompt hash in sdlc-graph-out/cache, so reruns cost nothing."""
+    vocabulary. Results are cached by prompt hash in work-graph-out/cache, so reruns cost nothing."""
     d, out = project.domain, _empty()
     backend = resolve_backend(None, project.backend, proc.backend)
     kinds = proc.kinds or ["requirement", "decision", "task"]

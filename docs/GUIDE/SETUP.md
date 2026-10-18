@@ -1,6 +1,6 @@
 # Setup
 
-How to install `sdlc-graph` and get a working LLM backend. For usage, see [USER-GUIDE.md](USER-GUIDE.md).
+How to install `work-graph` and get a working LLM backend. For usage, see [USER-GUIDE.md](USER-GUIDE.md).
 
 ## 1. Prerequisites
 
@@ -16,10 +16,10 @@ Python 3.10 to 3.12 comes with the conda environment in step 3. You only need th
 
 ```bash
 mkdir -p ~/projects/digital-duck && cd ~/projects/digital-duck
-git clone <this-repo-url> sdlc-graph
+git clone <this-repo-url> work-graph
 ```
 
-`sdlc-graph` uses [graphify](https://github.com/Graphify-Labs/graphify) as a library, installed automatically from PyPI (`graphifyy>=0.7.19`; the latest release is fine and is what the tests run against most often).
+`work-graph` uses [graphify](https://github.com/Graphify-Labs/graphify) as a library, installed automatically from PyPI (`graphifyy>=0.7.19`; the latest release is fine and is what the tests run against most often).
 
 ## 3. Create the conda environment and install
 
@@ -42,12 +42,12 @@ python -m pip --version                        # must point into .../envs/graf/.
 Then install from the repo root, always as `python -m pip` so the env's own pip is used:
 
 ```bash
-cd ~/projects/digital-duck/sdlc-graph
+cd ~/projects/digital-duck/work-graph
 python -m pip install -e ".[dev]"
-sdlc-graph doctor
+work-graph doctor
 ```
 
-`sdlc-graph doctor` prints the Python path, the environment, the graphify version and the default backend, and warns with `[!!]` if it is running in conda base. The environment line should read `.../envs/graf`.
+`work-graph doctor` prints the Python path, the environment, the graphify version and the default backend, and warns with `[!!]` if it is running in conda base. The environment line should read `.../envs/graf`.
 
 The extras (combine as needed, for example `".[dev,bedrock]"`):
 
@@ -63,7 +63,7 @@ The extras (combine as needed, for example `".[dev,bedrock]"`):
 ## 4. Verify
 
 ```bash
-sdlc-graph domains
+work-graph domains
 ```
 
 Expected:
@@ -78,7 +78,7 @@ Then the tests and a first build on the bundled examples:
 
 ```bash
 python -m pytest
-sdlc-graph build -c examples/workspace.yaml
+work-graph build -c examples/workspace.yaml
 ```
 
 The tests should all pass. The build prints node and edge counts, a per-stage table, and one deliberate warning about a broken reference (`REQ-099`) in the example data.
@@ -96,7 +96,7 @@ claude          # follow the login prompt, choose your claude.ai account
 **Check readiness** (offline, makes no model call):
 
 ```bash
-sdlc-graph llm -c examples/acme-shop/workspace.yaml --adapter cc_cli
+work-graph llm -c examples/acme-shop/workspace.yaml --adapter cc_cli
 ```
 
 Expected:
@@ -114,18 +114,18 @@ If the login line says `not a subscription login`, run `claude` and use `/login`
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `SDLC_GRAPH_CC_MODEL` | `claude-sonnet-5` | model passed to `claude --model` |
-| `SDLC_GRAPH_CC_TIMEOUT` | `1200` | seconds before a call is abandoned |
-| `SDLC_GRAPH_BACKEND` | (unset) | force a backend for all commands, same as `--adapter` |
+| `WORK_GRAPH_CC_MODEL` | `claude-sonnet-5` | model passed to `claude --model` |
+| `WORK_GRAPH_CC_TIMEOUT` | `1200` | seconds before a call is abandoned |
+| `WORK_GRAPH_BACKEND` | (unset) | force a backend for all commands, same as `--adapter` |
 
-**Do not confuse `cc_cli` with `claude-cli`.** `claude-cli` is graphify's built-in backend and passes your whole environment through, so if `ANTHROPIC_API_KEY` is set it bills the API per token. `sdlc-graph llm` flags that case. Use `cc_cli`.
+**Do not confuse `cc_cli` with `claude-cli`.** `claude-cli` is graphify's built-in backend and passes your whole environment through, so if `ANTHROPIC_API_KEY` is set it bills the API per token. `work-graph llm` flags that case. Use `cc_cli`.
 
 ## 6. LLM backend: `bedrock` (work, AWS)
 
 ```bash
 python -m pip install -e ".[bedrock]"
 
-export SDLC_GRAPH_BACKEND=bedrock          # or pass --adapter bedrock to each command
+export WORK_GRAPH_BACKEND=bedrock          # or pass --adapter bedrock to each command
 export AWS_PROFILE=<your-profile>          # or key env vars / SSO session
 export AWS_REGION=<region>
 export GRAPHIFY_BEDROCK_MODEL=<model-or-inference-profile-id>
@@ -136,7 +136,7 @@ Set `GRAPHIFY_BEDROCK_MODEL` explicitly. Graphify's built-in default is an old m
 Verify:
 
 ```bash
-sdlc-graph llm -c workspace.yaml
+work-graph llm -c workspace.yaml
 ```
 
 Every line should show `[ok]`. The region and model lines show `[!!]` when you rely on defaults; that is informational. Document text is sent to Bedrock in your own AWS account.
@@ -147,11 +147,11 @@ Other graphify backends (`claude`, `gemini`, `openai`, `kimi`, `ollama`) also wo
 
 | Path | Content | Git |
 |---|---|---|
-| `sdlc-graph-out/graph.json` | the built graph | ignored |
-| `sdlc-graph-out/cache/` | cached LLM results, keyed by backend and prompt | ignored |
+| `work-graph-out/graph.json` | the built graph | ignored |
+| `work-graph-out/cache/` | cached LLM results, keyed by backend and prompt | ignored |
 | `graphify-out/` | graphify's own AST cache | ignored |
 
-To keep the cache elsewhere, set `SDLC_GRAPH_CACHE=/some/dir`. Deleting the cache only costs you a re-run of the LLM pass. Your project folders are never written to.
+To keep the cache elsewhere, set `WORK_GRAPH_CACHE=/some/dir`. Deleting the cache only costs you a re-run of the LLM pass. Your project folders are never written to.
 
 ## Troubleshooting
 
@@ -164,7 +164,7 @@ To keep the cache elsewhere, set `SDLC_GRAPH_CACHE=/some/dir`. Deleting the cach
 | `graspologic` fails to install | You are on Python 3.13+ or in a conflicted env. Skip the `leiden` extra; Louvain is used instead. |
 | `claude on PATH` shows `[!!]` | Install Claude Code, make sure `claude` is on `PATH`, run `claude` once to log in. |
 | `limit reached` warning during `--semantic` | Your subscription session or rate limit is hit. The build still finishes; rerun later and cached documents are skipped. |
-| `unknown LLM backend` | Typo in `--adapter` / `SDLC_GRAPH_BACKEND`; the error lists valid names. |
+| `unknown LLM backend` | Typo in `--adapter` / `WORK_GRAPH_BACKEND`; the error lists valid names. |
 | `pytest` errors in `examples/` | Run `python -m pytest` from the repo root; it is configured to collect only `tests/`. |
 | Build is slow or has thousands of nodes | Generated files are being ingested; see "Ignoring noise" in the [user guide](USER-GUIDE.md). |
 
@@ -174,7 +174,7 @@ If an install already went into base, the packages it changed there can be put b
 
 ```bash
 conda activate base
-python -m pip uninstall -y sdlc-graph graspologic graspologic-native
+python -m pip uninstall -y work-graph graspologic graspologic-native
 python -m pip install "beartype>=0.20.0"      # graspologic had pinned it to 0.18.5, breaking fastmcp
 ```
 
