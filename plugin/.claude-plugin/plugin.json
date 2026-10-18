@@ -1,0 +1,10 @@
+{
+  "name": "workgraph",
+  "version": "0.1.0",
+  "description": "Workgraph as the memory of your Claude Code work: tracks the projects you open, summarizes what the knowledge graph knows at session start, and adds the /workgraph command to query it.",
+  "author": { "name": "digital-duck" },
+  "homepage": "https://github.com/digital-duck/work-graph",
+  "repository": "https://github.com/digital-duck/work-graph",
+  "license": "Apache-2.0",
+  "keywords": ["knowledge-graph", "memory", "sdlc", "context"]
+}

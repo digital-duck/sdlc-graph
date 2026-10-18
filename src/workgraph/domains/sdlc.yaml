@@ -53,6 +53,8 @@ ignore: ["**/docs/research/**", "**/docs/archive/**", "**/docs/outreach/**", "**
 #   llm         graphify's generic semantic extraction (needs --semantic and a backend)
 #   llm_items   this tool's domain prompt: prose -> typed work items (needs --semantic)
 processors:
+  # Claude Code's own memory for the project (~/.claude/projects/<slug>/memory), if there is any
+  - {name: claude-memory, use: claude_memory}
   - {name: code,        use: ast}
   - {name: docs,        use: frontmatter, match: ["**/*.md"]}
   - {name: annotations, use: annotations, match: ["**/*.py", "**/*.js", "**/*.ts", "**/*.go", "**/*.sql", "**/*.sh"]}

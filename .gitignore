@@ -219,5 +219,13 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-work-graph-out/
+workgraph-out/
 graphify-out/
+
+# workgraph databases hold comments, session journals and uid history: never commit them
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+*.db

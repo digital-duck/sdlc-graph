@@ -4,17 +4,18 @@ from pathlib import Path
 
 import pytest
 
-from work_graph.convert import json_to_yaml, yaml_to_json
-from work_graph.domain import Workspace
-from work_graph.pipeline import build_workspace
-from work_graph.schema import validate_layer
-from work_graph.store import Store
+from workgraph import paths
+from workgraph.convert import json_to_yaml, yaml_to_json
+from workgraph.domain import Workspace
+from workgraph.pipeline import build_workspace
+from workgraph.schema import validate_layer
+from workgraph.store import Store
 
 EX = Path(__file__).parent.parent / "examples"
 
 
 def _doc(layer="org", nodes=None, edges=None):
-    return {"schema": "work-graph/1", "layer": layer, "nodes": nodes or [], "edges": edges or []}
+    return {"schema": "workgraph/1", "layer": layer, "nodes": nodes or [], "edges": edges or []}
 
 
 def test_schema_accepts_valid_and_rejects_each_rule():
@@ -58,7 +59,7 @@ def test_broken_reference_and_rename_hint(tmp_path):
     ws = _copy_graphs(tmp_path)
     org = ws / "graphs" / "org.json"
     doc = json.loads(org.read_text())
-    with Store(ws / "graphs" / "store.sqlite") as store:
+    with Store(paths.store_path()) as store:
         store.remember_ids("org", doc["nodes"])               # history before the rename
     old = "org:acme/engineering/commerce/payments"
     for n in doc["nodes"]:
@@ -132,3 +133,14 @@ def test_invalid_layer_file_is_reported_not_loaded(tmp_path):
     _, _, warnings = build_workspace(Workspace.load(ws / "workspace.yaml"))
     assert any("planet" in w for w in warnings)
     assert any("broken reference org:acme" in w for w in warnings)   # product.json now points at missing org nodes
+
+
+def test_custom_process_layer_file_merges_with_ordered_steps():
+    M, _, _ = build_workspace(Workspace.load(EX / "workspace.yaml"))
+    rels = {(u, d["relation"], v) for u, v, d in M.edges(data=True)}
+    steps = ["interview", "requirements", "design", "prototype", "build", "test", "release", "feedback"]
+    for a, b in zip(steps, steps[1:]):
+        assert (f"process:delivery/{a}", "precedes", f"process:delivery/{b}") in rels
+    assert all((f"process:delivery/{s}", "part_of", "process:delivery") in rels for s in steps)
+    assert ("product:acme/retail/shop", "follows", "process:delivery") in rels
+    assert ("product:acme/retail/shop", "follows", "process:sdlc") in rels

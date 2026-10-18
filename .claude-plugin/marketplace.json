@@ -1,0 +1,13 @@
+{
+  "name": "workgraph",
+  "owner": { "name": "digital-duck" },
+  "metadata": { "description": "Workgraph: a knowledge graph of your software work, as memory for Claude Code" },
+  "plugins": [
+    {
+      "name": "workgraph",
+      "source": "./plugin",
+      "description": "Session memory and the /workgraph command for the workgraph knowledge graph",
+      "version": "0.1.0"
+    }
+  ]
+}

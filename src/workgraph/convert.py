@@ -9,7 +9,7 @@ from pathlib import Path
 
 from ruamel.yaml import YAML
 
-from .store import Store
+from .store import Store, file_key
 
 ITEM_RE = re.compile(r"^(\s*)- ")
 KEY_RE = re.compile(r"^\s*(?:- )?([\w.\-]+):(?:\s|$)")
@@ -186,15 +186,15 @@ def attach(text: str, comments: list[dict]) -> tuple[str, list[dict]]:
 def yaml_to_json(src: Path, dst: Path, store: Store) -> dict:
     text = src.read_text(encoding="utf-8")
     doc = _plain(YAML(typ="safe").load(text))
-    store.replace_comments(src.with_suffix("").name, harvest(text))
+    store.replace_comments(file_key(src), harvest(text))
     dst.write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     store.register(src.with_suffix(""), doc.get("layer") if isinstance(doc, dict) else None)
-    return {"comments": len(store.comments(src.with_suffix("").name))}
+    return {"comments": len(store.comments(file_key(src)))}
 
 
 def json_to_yaml(src: Path, dst: Path, store: Store) -> dict:
     doc = json.loads(src.read_text(encoding="utf-8"))
-    base = src.with_suffix("").name
+    base = file_key(src)
     if dst.exists():
         store.replace_comments(base, harvest(dst.read_text(encoding="utf-8")))   # keep edits made since last convert
     text, orphans = attach(dump_yaml(doc), store.comments(base))

@@ -9,6 +9,7 @@ from graphify.build import build
 from graphify.cluster import cluster
 
 from .domain import STRUCTURAL_KINDS, Project, Workspace, make_id
+from . import paths
 from .links import cross_project_links
 from .processors import run_processors
 from .refs import merge_layers
@@ -40,7 +41,8 @@ def _tag(project: Project, ex: dict, warnings: list[str]) -> dict:
         n["id"], n["project"], n["domain"], n["kind"] = pre(n["id"]), project.name, d.name, _kind(n)
         tags = []
         # LLM items carry their own stage tags; path rules only fill in when the LLM gave none.
-        path_tags = [] if (n.get("origin") == "llm" and n.get("stages")) else d.classify(n["source_file"] or "")
+        # memory nodes are not lifecycle artifacts, so path rules must not tag them either
+        path_tags = [] if (n.get("origin") == "llm" and n.get("stages")) or n["kind"] == "memory" else d.classify(n["source_file"] or "")
         for t in list(n.get("stages", [])) + path_tags:
             if t in d.stages:
                 tags.append(t)
@@ -152,7 +154,7 @@ def build_workspace(ws: Workspace, *, semantic: bool = False) -> tuple[nx.MultiD
     M = nx.MultiDiGraph(G)  # multi-edges: a structural edge and a flow edge can join the same pair
     derive_flow_edges(M, ws)
     M.graph["clones"] = cross_project_links(M, ws)
-    store = Store(ws.graphs_dir / "store.sqlite") if ws.graphs_dir and (ws.graphs_dir / "store.sqlite").exists() else None
+    store = Store(paths.store_path()) if ws.graphs_dir and paths.store_path().exists() else None
     warnings += merge_layers(M, ws, store)
     if store:
         store.close()

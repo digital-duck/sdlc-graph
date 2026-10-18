@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "work-graph"
+name = "workgraph"
 version = "0.0.1"
 description = "SDLC-aware personal knowledge graph assistant, built on graphify and NetworkX"
 readme = "README.md"
@@ -18,15 +18,17 @@ dependencies = [
 
 [project.optional-dependencies]
 mcp = ["mcp"]
+ui = ["streamlit"]
+semantic = ["sentence-transformers"]
 bedrock = ["boto3"]
 leiden = ["graspologic; python_version < '3.13'"]
 dev = ["pytest"]
 
 [project.scripts]
-work-graph = "work_graph.cli:main"
+workgraph = "workgraph.cli:main"
 
 [tool.setuptools.package-data]
-work_graph = ["domains/*.yaml"]
+workgraph = ["domains/*.yaml", "data/*.md"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

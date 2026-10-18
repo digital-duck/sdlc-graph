@@ -32,5 +32,7 @@ classifiers:
   - {stage: draft,   default: true}
 
 processors:
+  # Claude Code's own memory for the project (~/.claude/projects/<slug>/memory), if there is any
+  - {name: claude-memory, use: claude_memory}
   - {name: text,  use: frontmatter, match: ["**/*.md"]}
   - {name: media, use: llm, match: ["**/*.png", "**/*.jpg", "**/*.mp4", "**/*.pdf"], backend: cc_cli}

@@ -2,7 +2,53 @@
 
 Design for the multi-graph prototype described in the Vision section of the [README](../../README.md). It extends the existing repo and process layers with product and org layers, graph references, JSON/YAML dual storage and a comment store. The wider context is in `zinets/README-graph-vision.md`.
 
-Status: this document was written before the build. Where the build differs, the code wins and this file should be updated.
+This document was first written before the build. Where the build differs, the code wins and this file should be updated.
+
+## Status
+
+Legend: **built** = implemented and covered by tests or a live run; **partial** = works with a stated limit; **not built** = planned. Verification says how far it was checked, so "built" does not hide an untried path. 52 automated tests pass in a clean venv. In the conda base environment 50 pass and the UI test module is skipped, because that NumPy and pyarrow pair is broken.
+
+| Area | Feature | Status | Verification and limits |
+|---|---|---|---|
+| Core | Repo graph from projects (tree-sitter code, markdown frontmatter, annotations, derived `verifies`) | built | tests; run on `acme-shop` and a 113-file real app |
+| Core | Domain packs `sdlc`, `research`, `publishing`; gap rules; broken-reference reports | built | tests |
+| Core | Cross-project `identical_to` / `variant_of` links (`clones`) | built | test |
+| Core | Reload of a built graph for queries (`graph.json`) | built | `query.load_graph`; rebuilding the build pipeline from a saved graph is not needed |
+| LLM | `cc_cli` backend (Claude Code subscription, API variables stripped); `llm_items` extraction with caching | built | unit tests; live run: 4 documents, 26 items, about 5 minutes |
+| LLM | Other backends (`bedrock`, `claude`, `gemini`, ...) through graphify | partial | wiring and readiness checks only; not exercised here |
+| Layers | Layer files: schema, validation, referential integrity (`check`) | built | tests |
+| Layers | Product, org and process layers; cross-layer relations; pack-derived `process:<domain>` templates | built | tests; examples in `examples/graphs/` |
+| Layers | Sub-graph references (`/**`) | built | test |
+| Layers | `uid` rename hints; `check --assign-uids` | built | test; hints depend on the store having seen the old id |
+| Layers | Process instances (a product's status within a process template) | not built | only templates and the `follows` link exist |
+| Layers | Per-layer vocabulary as YAML packs | not built | kinds and relations are Python constants in `schema.py` |
+| Formats | JSON <-> YAML converters (`convert`) | built | round-trip test |
+| Formats | Comment store: anchored comments restored on JSON -> YAML; orphans kept | built | tests; comments inside hand-written flow-style items attach to the whole item; renaming a node id orphans its comments |
+| Home | Home folder `~/workgraph` (`WORKGRAPH_HOME`), `init`, `track`, default workspace | built | tests |
+| Home | `--src <folder or git URL>` ad-hoc builds, shallow clones into `<home>/src` | built | tests (clone mocked); live clone of this repo over https |
+| Home | graphify AST cache moved into `<home>/cache/ast` | built | output compared byte-for-byte before and after |
+| Search | `status`, `show`, `search` (keyword), `context` | built | tests |
+| Search | Semantic search: Ollama embeddings (cached) | built | tests with a fake server; live with `nomic-embed-text` |
+| Search | Semantic search: sentence-transformers | partial | code path written; not run (package not installed here) |
+| Search | TF-IDF fallback, labelled as lexical | built | tests |
+| UI | Streamlit app (`workgraph ui`): overview, search, browse, gaps, node panel | built | headless app tests and a server health check; not looked at in a browser by the author |
+| Claude Code | Hooks `session-start` / `session-end`: track project, journal, context summary, background rebuild | built | tests with simulated payloads; headless Claude sessions |
+| Claude Code | Plugin (`plugin/`, marketplace file) and the `/workgraph` command | built | `claude plugin validate`; command run in real headless sessions via `--plugin-dir` and as a project command. Marketplace install not tried (repo not pushed with the plugin) |
+| Claude Code | `claude-setup --write` (hooks and the plain `/workgraph` command into `~/.claude`) | built | tests on temporary files; never run against the real `~/.claude` |
+| Claude Code | Memory files as `memory` nodes (processor `claude_memory`) | built | test; live: a project's 9 memory files found by `search` |
+| Claude Code | `import-claude`: track the projects Claude Code worked in; session metadata (and optional titles) into the journal | built | tests; live on this machine in a scratch home: 42 folders, 65 sessions. Dry run by default; message text is never stored |
+| Privacy | Database renamed `workgraph.sqlite3` and kept at the top of the home folder, away from every synced or committed folder; `*.sqlite*`/`*.db` git-ignored | built | tests; old `graphs/store.sqlite` moves over automatically |
+| Privacy | Guards on export and push: database files, files over 5 MB and secret patterns stop the operation; org layer, sessions and LLM cache are opt-in | built | tests |
+| Sync | `export` / `import` tar.gz (USB, first setup) with safe extraction | built | tests; live between two scratch homes |
+| Sync | `sync init/push/pull/status` through a private git repository, 3-way file merge that never overwrites local work, JSONL for comments, uid history and sessions | built | tests with a local bare repo; live between two scratch homes. Not run against GitHub: the privacy check through `gh` is untested |
+| Sync | Portable `workspace.yaml` (repo URLs, no local folders); `track` binds a folder; `sync pull --clone-missing` | built | tests |
+| Server | A shared server for teams or enterprises (accounts, access control, concurrent writers) | not built | out of scope: workgraph is a personal assistant; a server design comes if it grows into a team product |
+| Query | `ask`: graph-grounded LLM answers with cited nodes | not built | `/workgraph <question>` approximates it by letting Claude drive `search` and `show` |
+| Query | MCP server so assistants call search/show as tools | not built | the `mcp` extra is declared but unused |
+| Query | Impact analysis; traceability report; whole-graph interactive visualization | not built | only a one-hop neighbourhood diagram exists |
+| Ingest | Git history (commits, issues); watch mode; session records as graph nodes | not built | sessions are kept in a journal table, not in the graph |
+| Review | LLM-proposed edges with accept/reject | not built | LLM items stay `INFERRED` and are excluded from gap rules |
+| Fit | Mapping to the ZiNets `primitives / concepts / applications` `graph.yaml` | not built | open question 14 |
 
 ## 1. Goals and non-goals
 
@@ -61,14 +107,13 @@ One file per layer, kept together in a single directory next to `workspace.yaml`
 examples/graphs/
   org.json        org.yaml
   product.json    product.yaml
-  store.sqlite    # file registry + comments + uid history
 ```
 
 JSON form (canonical):
 
 ```json
 {
-  "schema": "work-graph/1",
+  "schema": "workgraph/1",
   "layer": "product",
   "nodes": [
     {"id": "product:acme/shop", "uid": "3fa9c2d1", "kind": "product", "label": "Shop"}
@@ -109,7 +154,7 @@ Nothing downstream sees unresolved references, and the resolved graph is what `b
 
 ## 5. Dual formats and conversion (`convert.py`)
 
-JSON is canonical and is what the loader reads. YAML exists for review. `work-graph convert <file>` converts by extension: `.yaml` to `.json`, `.json` to `.yaml`. The YAML writer is `ruamel.yaml`, with a fixed layout (block style, `id` first, a fixed key order, sequences indented under their key) so that the comment store can find items reliably.
+JSON is canonical and is what the loader reads. YAML exists for review. `workgraph convert <file>` converts by extension: `.yaml` to `.json`, `.json` to `.yaml`. The YAML writer is `ruamel.yaml`, with a fixed layout (block style, `id` first, a fixed key order, sequences indented under their key) so that the comment store can find items reliably.
 
 Rules:
 
@@ -119,7 +164,7 @@ Rules:
 
 ## 6. Comment store (`store.py`)
 
-YAML comments have no JSON equivalent. The SQLite store (`<graphs dir>/store.sqlite`) keeps them:
+YAML comments have no JSON equivalent. The SQLite database (`<home>/workgraph.sqlite3`, at the top of the home folder and never inside `graphs/` or `sync/`) keeps them:
 
 | Table | Columns | Purpose |
 |---|---|---|
@@ -145,32 +190,116 @@ Limitations of the prototype: comments are matched at item level plus one key. C
 
 | Command | Does |
 |---|---|
-| `work-graph build -c workspace.yaml` | existing build, now also loads and merges the layer files (errors become warnings in the output) |
-| `work-graph check -c workspace.yaml` | validate layer files and references, report renames, stale YAML, missing uids. `--assign-uids` writes uids into JSON files that lack them |
-| `work-graph convert <file> [-o OUT] [--db PATH]` | JSON to YAML or YAML to JSON with the comment store |
+| `build`, `gaps`, `clones`, `open` | the repo graph from a workspace file, the default workspace, or `--src` folders and URLs; `build` also merges the layer files |
+| `check` | validate layer files and references, report renames, stale YAML, missing uids (`--assign-uids` writes uids) |
+| `convert FILE` | JSON <-> YAML with the comment store |
+| `init`, `track PATH` | create the home folder; add a project to the default workspace |
+| `status`, `search`, `show`, `context` | query the last built graph (`search --semantic` for embeddings) |
+| `ui` | Streamlit app |
+| `claude-setup [--write]`, `hook EVENT` | Claude Code hooks and the plain `/workgraph` command; the hook handler |
+| `llm`, `doctor`, `domains` | backend readiness, environment check, list packs |
 
 ## 8. Module map
 
 ```
-src/work_graph/
-  schema.py    # layers, kinds, relation rules, validate_layer()
-  refs.py      # load layer files, expand /** references, merge into the build graph, check integrity
-  convert.py   # JSON <-> YAML, comment harvest and re-attach
-  store.py     # SQLite: registry, comments, uid history
+src/workgraph/
+  schema.py        # layers, kinds, relation rules, validate_layer()
+  refs.py          # load layer files, expand /** references, merge into the build graph, check integrity
+  convert.py       # JSON <-> YAML, comment harvest and re-attach
+  store.py         # SQLite: registry, comments, uid history, session journal, sync hashes
+  syncing.py       # sync tree: export/import tar.gz, git sync, privacy guards
+  claude_import.py # Claude Code memory processor and import-claude
+  paths.py         # home folder layout
+  sources.py       # --src folders and URLs
+  tracking.py      # init, track
+  claude_code.py   # hooks, context summary, settings and command installation
+  query.py         # load, keyword and semantic search, neighbourhoods, gaps
+  ui/app.py        # Streamlit app
+  data/            # packaged copy of the /workgraph command (kept identical to plugin/commands/workgraph.md)
+plugin/            # Claude Code plugin; marketplace file in .claude-plugin/
 ```
 
 `pipeline.build_workspace` calls `refs.merge_layers` after the repo graph is built and clustered. Clustering and gap analysis are unchanged: layer nodes are added after clustering, and gap analysis skips nodes that do not belong to a domain pack.
 
-## 9. Tests
+## 9. Tests (the original plan; the suite has since grown to 41 tests)
 
 - schema: valid file passes, each rule has a failing case
 - refs: `/**` expansion, broken reference, rename hint, pack-derived `process:` nodes, cross-layer merge into the example workspace
 - convert: JSON to YAML to JSON round trip is identical
 - store: comments survive YAML to JSON to YAML, an added comment is not lost on re-conversion, an orphan is kept and reported
 
-## 10. Open questions
+## 10. Home folder, sources and Claude Code (added after the first build)
+
+- **Home folder.** Because the tool is pip-installed, data does not live in the repo: `$WORKGRAPH_HOME` (default `~/workgraph`) holds `workspace.yaml`, `graphs/` (layer files and `store.sqlite`), `out/graph.json`, `cache/` and `src/`. A workspace file's own `graphs/` folder (as in `examples/`) takes precedence over the home one. graphify's AST cache is redirected into `cache/ast/<project>` so neither projects nor the working directory are written to.
+- **`--src <URL or path>`.** Builds an in-memory workspace (one project per source, default domain `sdlc`). URLs (`https://`, `ssh://`, `git://`, `git@host:path`) are shallow-cloned into `src/<name>` and fast-forwarded on later runs. Nothing from the clone is executed.
+- **Claude Code.** `SessionStart` and `SessionEnd` hooks call `workgraph hook <event>`. Start tracks the project (git root of the session's cwd, never the home folder), logs the session in the `sessions` table and prints a summary for the session context. End records branch and changed files and starts a detached background build when something changed. Handlers swallow all errors. Installing the hooks into `~/.claude/settings.json` happens only through `claude-setup --write`.
+- **Not done.** An MCP server that lets Claude query the graph on demand (the `mcp` extra is declared but unused), writing session records into the graph as nodes instead of a journal table, and per-project domain choice when auto-tracking (new projects default to `sdlc`).
+
+## 11. Search, UI and plugin
+
+- **Search** (`query.py`). One document per non-structural node: label, kind, stages, project, path, summary and the first 1,500 characters of its file. Keyword search is a small weighted scorer (label > path/id > summary > body, idf, prefix matches, quoted phrases). Semantic search is `auto` = ollama embeddings, else sentence-transformers, else TF-IDF; the fallback is reported as lexical, never presented as meaning. Embeddings are cached by content hash in `<home>/cache/embeddings`.
+- **UI.** Streamlit app launched by `workgraph ui`: Overview, Search, Browse, Gaps, and a node panel (attributes, links, Graphviz neighbourhood). It reads `graph.json` only.
+- **Plugin.** `plugin/` carries the two hooks and the `/workgraph` command; `.claude-plugin/marketplace.json` lets `/plugin marketplace add digital-duck/work-graph` find it. Plugin commands are namespaced by Claude Code, so the plain `/workgraph` is installed as a user command by `claude-setup --write`. Use one route or the other.
+- **Not done.** An MCP server (Claude calling `search`/`show` as tools instead of through Bash), an interactive whole-graph visualization, and saving search results as reviewed links.
+
+## 12. Ingesting existing Claude Code memory and history (built)
+
+Only work done after the hooks are installed is tracked, so the work already on the machine needed a backfill. Claude Code keeps it under `~/.claude/projects/<slug>/`, where `<slug>` is the project path with every non-alphanumeric character turned into `-` (on the author's machine: 55 folders, up to 29 memory files each, 75 transcripts). Everything is read-only on `~/.claude`.
+
+| Source | Becomes | How |
+|---|---|---|
+| `memory/*.md` (not `MEMORY.md`, the index) | one `memory` node per file, with `memory_type` (`user`, `feedback`, `project`, `reference`) and the file's `description` as its summary | the `claude_memory` processor, in every domain pack. It runs on every build for each tracked project, so new memories arrive with no import step. Memory nodes are untagged (not a lifecycle stage), so gap rules ignore them, and their text is searchable like any document |
+| `<session>.jsonl` | one row in the session journal: id, project, start and end, branch, files touched by Edit/Write calls, and (with `--with-titles`) Claude's own one-line title | `workgraph import-claude --apply`. **Message text is never stored.** Re-running replaces rows by session id |
+| project `CLAUDE.md` | already a design document inside the project | nothing new |
+
+`workgraph import-claude` is a dry run unless `--apply` is given, because applying edits the default workspace. It resolves each slug to a folder (the `cwd` recorded in a transcript, else matching the dash-joined names against the filesystem), then decides per folder: track, already tracked, or skip (folder gone, home or `/tmp`, or nested inside another project unless it is its own git repository or `--include-nested` is given). Because slugs lose information, a folder that cannot be found is listed rather than guessed.
+
+Cautions: transcript and memory formats belong to Claude Code and can change, so parsing is defensive and a failed file is skipped. Memory text is private. It enters the graph (and `search`), but it is **not** part of the sync tree: memory is read from each machine's own `~/.claude`.
+
+## 13. Moving a workgraph between machines (built)
+
+Shared storage is a **private GitHub repository** only; Google Drive, iCloud and similar sync folders are not used, because a database copied mid-write can corrupt and conflicts become duplicate files. A tar.gz carries the *first* setup (for example by USB), and git carries the increments. Sharing a graph with a team or an enterprise would need a server and is out of scope for this personal assistant.
+
+The useful split is **what can be rebuilt** and **what cannot**:
+
+| Content | Rebuildable? | Synced? |
+|---|---|---|
+| Repo graph (`out/`), AST cache, embeddings, `src/` clones | yes, one `build` | never |
+| Layer files (`graphs/`) | no, authored | yes (`graphs` part). The **org** layer lists people and is **opt-in** (`--with org`) |
+| YAML comments, uid history | no | yes, as `store/comments.jsonl` and `store/node_ids.jsonl` (`comments` part) |
+| Session journal | no | opt-in (`--with sessions`): it lists changed file names |
+| LLM extraction cache | only by spending subscription time again | opt-in (`--with llm-cache`) |
+| `workspace.yaml` | partly | yes, **portable**: names, `repo` URLs, domains; no local folders |
+| The database `workgraph.sqlite3` | n/a | **never**. It is not inside any synced folder |
+
+**The sync tree.** `export_tree` writes text only: `manifest.json`, `workspace.yaml`, `graphs/`, `store/*.jsonl` and `cache/llm/`. Both routes use it. `export -o FILE.tar.gz` packs it; `sync push` writes it into `<home>/sync/` (a git working tree) and commits. `import FILE` and `sync pull` apply it with `import_tree`.
+
+**Privacy by construction, not by care.**
+- The database cannot be committed: it is outside `<home>/sync/`, the repo's `.gitignore` is an allowlist (`*` then explicit `!` entries), and `*.sqlite*`, `*.db` are ignored in this repository too.
+- Every export and push passes `guard_tree`: database files, files over 5 MB and secret patterns (Anthropic, AWS, GitHub, Slack and Google keys, private keys) stop the operation.
+- `sync init` refuses a repository it cannot show to be private: GitHub is checked with `gh api repos/OWNER/REPO --jq .private` (a public repository is refused); anything else needs `--confirm-private`.
+- Credentials embedded in a remote URL are stripped before it is written into `workspace.yaml`.
+- Archive import accepts only plain files and folders, rejects absolute or `..` paths and links, caps the size, and scans the content with the same guard.
+
+**Applying a tree never destroys local work.** For each layer file the database remembers the hash as of the last sync. Unchanged here, changed there: take theirs. Unchanged there: keep ours. Changed on both sides (or never synced before and different): keep ours and write theirs as `<name>.incoming.<ext>` for you to merge by hand, and report it. Comments, uid records and sessions merge as unions. A comment deleted on one machine therefore comes back from the other.
+
+**A project without a folder.** After an import, a project from the workspace may have no folder on this machine. It is listed as unresolved and skipped by builds. `workgraph track <folder>` binds it (matching by name or repo URL), and `sync pull --clone-missing` clones it into `<home>/src`.
+
+**Workflow.**
+```
+machine A:  workgraph export -o workgraph.tar.gz          # USB stick, once
+machine B:  workgraph import workgraph.tar.gz
+both:       workgraph sync init git@github.com:you/my-workgraph.git     # a PRIVATE repository
+then:       workgraph sync push   /   workgraph sync pull [--clone-missing]   /   workgraph sync status
+```
+
+Limits: `sync pull` uses a fast-forward-only git pull, so if the repository's history has diverged you resolve it with git in `<home>/sync/`. The LLM cache is keyed by backend and prompt, so a machine with a different backend re-extracts once. The `gh` privacy check has not been run against GitHub itself.
+
+## 14. Open questions
 
 - Whether `uid` should be assigned automatically on first `convert` instead of through `check --assign-uids`.
 - Per-layer packs: the layer vocabulary is Python constants for now. Moving it to YAML packs would match the domain-pack approach.
 - Process instances (status of a product moving through a template).
+- Whether comments should sync as deletions as well as additions (today a deleted comment returns from the other machine).
+- Whether a team or enterprise mode is wanted at all, which would mean a server with accounts and access control rather than files.
 - Relationship to the `primitives / concepts / applications` three-layer `graph.yaml` of the ZiNets ecosystem.

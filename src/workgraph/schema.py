@@ -5,7 +5,7 @@ import re
 
 import networkx as nx
 
-SCHEMA = "work-graph/1"
+SCHEMA = "workgraph/1"
 
 LAYER_KINDS = {
     "product": {"family", "product", "application"},

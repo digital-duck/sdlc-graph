@@ -1,5 +1,5 @@
 {
-  "schema": "work-graph/1",
+  "schema": "workgraph/1",
   "layer": "org",
   "nodes": [
     {

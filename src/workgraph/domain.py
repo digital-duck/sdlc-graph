@@ -143,6 +143,7 @@ class Project:
 class Workspace:
     projects: list[Project]
     graphs_dir: Path | None = None   # layer files (product, org, process), see docs/DEV/README-design.md
+    unresolved: list[str] = field(default_factory=list)   # projects with no folder on this machine (synced, not yet cloned/tracked)
 
     @property
     def domains(self) -> dict[str, Domain]:
@@ -154,11 +155,19 @@ class Workspace:
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
         default = raw.get("domain", "sdlc")
         cache: dict[str, Domain] = {}
-        projects = []
+        projects, unresolved = [], []
         for p in raw["projects"]:
             dn = p.get("domain", default)
             cache.setdefault(dn, Domain.load(dn))
-            projects.append(Project(p["name"], (path.parent / p["path"]).resolve(), cache[dn],
+            if p.get("path"):
+                folder = (path.parent / p["path"]).resolve()
+            else:                      # a project that arrived through sync: usable once cloned or tracked here
+                from . import paths
+                folder = paths.src_dir() / p["name"]
+                if not folder.is_dir():
+                    unresolved.append(p["name"])
+                    continue
+            projects.append(Project(p["name"], folder, cache[dn],
                                     p.get("backend", raw.get("backend")), p.get("ignore", [])))
         graphs = path.parent / raw["graphs"] if raw.get("graphs") else path.parent / "graphs"
-        return cls(projects, graphs.resolve() if graphs.is_dir() else None)
+        return cls(projects, graphs.resolve() if graphs.is_dir() else None, unresolved)

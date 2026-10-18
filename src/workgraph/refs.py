@@ -10,7 +10,7 @@ import networkx as nx
 
 from .domain import Workspace
 from .schema import layer_of, validate_layer
-from .store import Store, sha256
+from .store import Store, file_key, sha256
 
 GLOB = "/**"
 
@@ -37,20 +37,29 @@ def load_layers(graphs_dir: Path) -> tuple[dict[str, dict], list[str]]:
     return docs, errs
 
 
+def _same_content(y: Path, j: Path) -> bool:
+    """True if the YAML holds exactly the graph in the JSON (comments and layout aside)."""
+    from ruamel.yaml import YAML
+    try:
+        return json.loads(json.dumps(YAML(typ="safe").load(y.read_text(encoding="utf-8")))) == json.loads(j.read_text(encoding="utf-8"))
+    except Exception:
+        return False
+
+
 def stale_notes(graphs_dir: Path, store: Store | None = None) -> list[str]:
     """YAML files the loader will not see: no JSON counterpart, or edited after the last convert.
     The store's recorded hashes decide when it has them; otherwise file times are compared."""
     notes = []
     for y in sorted(graphs_dir.glob("*.yaml")):
         j = y.with_suffix(".json")
-        reg = store.registered(y.stem) if store else None
+        reg = store.registered(file_key(y)) if store else None
         if not j.exists():
-            notes.append(f"{y.name}: no {j.name}; run `work-graph convert {y.name}`")
+            notes.append(f"{y.name}: no {j.name}; run `workgraph convert {y.name}`")
         elif reg:
             if sha256(y) != reg[1]:
-                notes.append(f"{y.name}: edited since the last convert; run `work-graph convert {y.name}`")
-        elif y.stat().st_mtime > j.stat().st_mtime:
-            notes.append(f"{y.name}: newer than {j.name}; run `work-graph convert {y.name}`")
+                notes.append(f"{y.name}: edited since the last convert; run `workgraph convert {y.name}`")
+        elif y.stat().st_mtime > j.stat().st_mtime and not _same_content(y, j):
+            notes.append(f"{y.name}: newer than {j.name}; run `workgraph convert {y.name}`")
     return notes
 
 

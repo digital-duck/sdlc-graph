@@ -1,0 +1,88 @@
+schema: workgraph/1
+layer: process
+nodes:
+  - id: process:delivery
+    uid: 80f97043
+    kind: process
+    label: Stakeholder-to-feedback delivery
+  - id: process:delivery/interview
+    uid: d72a23c8
+    kind: step
+    label: Stakeholder interview
+  - id: process:delivery/requirements
+    uid: 3546863c
+    kind: step
+    label: Requirement spec
+  - id: process:delivery/design
+    uid: b1a97f71
+    kind: step
+    label: Solution design
+  - id: process:delivery/prototype
+    uid: 18d2c18d
+    kind: step
+    label: Prototyping
+  - id: process:delivery/build
+    uid: 3db4c85e
+    kind: step
+    label: Build
+  - id: process:delivery/test
+    uid: dd45603c
+    kind: step
+    label: Test
+  - id: process:delivery/release
+    uid: b0ba7deb
+    kind: step
+    label: Release
+  - id: process:delivery/feedback
+    uid: c124e4c9
+    kind: step
+    label: Feedback
+edges:
+  - source: process:delivery/interview
+    relation: part_of
+    target: process:delivery
+  - source: process:delivery/requirements
+    relation: part_of
+    target: process:delivery
+  - source: process:delivery/design
+    relation: part_of
+    target: process:delivery
+  - source: process:delivery/prototype
+    relation: part_of
+    target: process:delivery
+  - source: process:delivery/build
+    relation: part_of
+    target: process:delivery
+  - source: process:delivery/test
+    relation: part_of
+    target: process:delivery
+  - source: process:delivery/release
+    relation: part_of
+    target: process:delivery
+  - source: process:delivery/feedback
+    relation: part_of
+    target: process:delivery
+  - source: process:delivery/interview
+    relation: precedes
+    target: process:delivery/requirements
+  - source: process:delivery/requirements
+    relation: precedes
+    target: process:delivery/design
+  - source: process:delivery/design
+    relation: precedes
+    target: process:delivery/prototype
+  - source: process:delivery/prototype
+    relation: precedes
+    target: process:delivery/build
+  - source: process:delivery/build
+    relation: precedes
+    target: process:delivery/test
+  - source: process:delivery/test
+    relation: precedes
+    target: process:delivery/release
+  - source: process:delivery/release
+    relation: precedes
+    target: process:delivery/feedback
+  - source: process:delivery/feedback
+    relation: precedes
+    target: process:delivery/interview

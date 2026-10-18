@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import re
+import warnings
 from pathlib import Path
 from typing import Callable
 
@@ -14,8 +15,10 @@ import yaml
 from graphify.detect import _is_ignored, _is_noise_dir, _load_graphifyignore, _parse_gitignore_line
 from graphify.extract import collect_files, extract
 
+from . import paths
 from .domain import Processor, Project, glob_match, make_id
 from .cc_cli import BackendLimitError
+from .claude_import import p_claude_memory
 from .llm import complete, resolve_backend
 
 
@@ -78,10 +81,14 @@ def p_ast(project: Project, files: list[Path], proc: Processor) -> dict:
              if f.suffix.lower() not in _DOC_SUFFIXES and f.resolve() in allowed]
     if not found:
         return _empty()
-    out = extract(found)
+    base = Path(os.path.commonpath([f.parent for f in found])).resolve()
+    # root pins the path anchor (graphify otherwise derives it from cache_root); cache_root keeps graphify's
+    # cache out of the project and the current directory.
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message="stat index switched")   # we use one cache root per project on purpose
+        out = extract(found, cache_root=paths.cache_dir() / "ast" / project.name, root=base)
     out.setdefault("refs", [])
     # graphify reports paths relative to the files' common directory; make them project-relative.
-    base = Path(os.path.commonpath([f.parent for f in found])).resolve()
     shift = base.relative_to(project.path)
     for item in out["nodes"] + out["edges"]:
         sf = item.get("source_file")
@@ -189,7 +196,7 @@ _MAX_DOC_CHARS, _MAX_ITEMS = 24_000, 40
 
 
 def _cache_dir() -> Path:
-    d = Path(os.environ.get("WORK_GRAPH_CACHE", "work-graph-out/cache"))
+    d = paths.cache_dir()
     d.mkdir(parents=True, exist_ok=True)
     return d
 
@@ -210,7 +217,7 @@ def p_llm_items(project: Project, files: list[Path], proc: Processor) -> dict:
     """Domain-prompted extraction: prose docs -> typed work items (INFERRED, origin=llm).
 
     Uses graphify's backend dispatcher (`_call_llm`) but our own prompt, built from the domain pack's
-    vocabulary. Results are cached by prompt hash in work-graph-out/cache, so reruns cost nothing."""
+    vocabulary. Results are cached by prompt hash in <home>/cache, so reruns cost nothing."""
     d, out = project.domain, _empty()
     backend = resolve_backend(None, project.backend, proc.backend)
     kinds = proc.kinds or ["requirement", "decision", "task"]
@@ -248,7 +255,7 @@ def p_llm_items(project: Project, files: list[Path], proc: Processor) -> dict:
 
 REGISTRY: dict[str, Callable[[Project, list[Path], Processor], dict]] = {
     "ast": p_ast, "frontmatter": p_frontmatter, "annotations": p_annotations, "llm": p_llm,
-    "llm_items": p_llm_items,
+    "llm_items": p_llm_items, "claude_memory": p_claude_memory,
 }
 
 

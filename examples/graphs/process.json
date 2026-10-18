@@ -1,0 +1,142 @@
+{
+  "schema": "workgraph/1",
+  "layer": "process",
+  "nodes": [
+    {
+      "id": "process:delivery",
+      "kind": "process",
+      "label": "Stakeholder-to-feedback delivery",
+      "uid": "80f97043"
+    },
+    {
+      "id": "process:delivery/interview",
+      "kind": "step",
+      "label": "Stakeholder interview",
+      "uid": "d72a23c8"
+    },
+    {
+      "id": "process:delivery/requirements",
+      "kind": "step",
+      "label": "Requirement spec",
+      "uid": "3546863c"
+    },
+    {
+      "id": "process:delivery/design",
+      "kind": "step",
+      "label": "Solution design",
+      "uid": "b1a97f71"
+    },
+    {
+      "id": "process:delivery/prototype",
+      "kind": "step",
+      "label": "Prototyping",
+      "uid": "18d2c18d"
+    },
+    {
+      "id": "process:delivery/build",
+      "kind": "step",
+      "label": "Build",
+      "uid": "3db4c85e"
+    },
+    {
+      "id": "process:delivery/test",
+      "kind": "step",
+      "label": "Test",
+      "uid": "dd45603c"
+    },
+    {
+      "id": "process:delivery/release",
+      "kind": "step",
+      "label": "Release",
+      "uid": "b0ba7deb"
+    },
+    {
+      "id": "process:delivery/feedback",
+      "kind": "step",
+      "label": "Feedback",
+      "uid": "c124e4c9"
+    }
+  ],
+  "edges": [
+    {
+      "source": "process:delivery/interview",
+      "target": "process:delivery",
+      "relation": "part_of"
+    },
+    {
+      "source": "process:delivery/requirements",
+      "target": "process:delivery",
+      "relation": "part_of"
+    },
+    {
+      "source": "process:delivery/design",
+      "target": "process:delivery",
+      "relation": "part_of"
+    },
+    {
+      "source": "process:delivery/prototype",
+      "target": "process:delivery",
+      "relation": "part_of"
+    },
+    {
+      "source": "process:delivery/build",
+      "target": "process:delivery",
+      "relation": "part_of"
+    },
+    {
+      "source": "process:delivery/test",
+      "target": "process:delivery",
+      "relation": "part_of"
+    },
+    {
+      "source": "process:delivery/release",
+      "target": "process:delivery",
+      "relation": "part_of"
+    },
+    {
+      "source": "process:delivery/feedback",
+      "target": "process:delivery",
+      "relation": "part_of"
+    },
+    {
+      "source": "process:delivery/interview",
+      "target": "process:delivery/requirements",
+      "relation": "precedes"
+    },
+    {
+      "source": "process:delivery/requirements",
+      "target": "process:delivery/design",
+      "relation": "precedes"
+    },
+    {
+      "source": "process:delivery/design",
+      "target": "process:delivery/prototype",
+      "relation": "precedes"
+    },
+    {
+      "source": "process:delivery/prototype",
+      "target": "process:delivery/build",
+      "relation": "precedes"
+    },
+    {
+      "source": "process:delivery/build",
+      "target": "process:delivery/test",
+      "relation": "precedes"
+    },
+    {
+      "source": "process:delivery/test",
+      "target": "process:delivery/release",
+      "relation": "precedes"
+    },
+    {
+      "source": "process:delivery/release",
+      "target": "process:delivery/feedback",
+      "relation": "precedes"
+    },
+    {
+      "source": "process:delivery/feedback",
+      "target": "process:delivery/interview",
+      "relation": "precedes"
+    }
+  ]
+}

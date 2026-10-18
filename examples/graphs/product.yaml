@@ -1,4 +1,4 @@
-schema: work-graph/1
+schema: workgraph/1
 layer: product
 nodes:
   - id: product:acme/retail
@@ -29,3 +29,6 @@ edges:
   - source: product:acme/retail/shop
     relation: follows
     target: process:sdlc
+  - source: product:acme/retail/shop
+    relation: follows
+    target: process:delivery

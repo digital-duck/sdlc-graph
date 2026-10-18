@@ -16,8 +16,8 @@ import os
 import subprocess
 import time
 
-DEFAULT_MODEL = "claude-sonnet-5"      # same default as the SPL adapter; override with WORK_GRAPH_CC_MODEL
-DEFAULT_TIMEOUT = 1200                 # seconds, same as SPL; override with WORK_GRAPH_CC_TIMEOUT
+DEFAULT_MODEL = "claude-sonnet-5"      # same default as the SPL adapter; override with WORKGRAPH_CC_MODEL
+DEFAULT_TIMEOUT = 1200                 # seconds, same as SPL; override with WORKGRAPH_CC_TIMEOUT
 LAUNCH_ATTEMPTS = 3                    # 1 try + 2 retries for OSError (not for timeouts)
 
 # Variables that would route `claude` to a paid API / another provider / a nested-session guard.
@@ -46,8 +46,8 @@ def stripped_vars_present() -> list[str]:
 
 def complete(prompt: str, *, model: str | None = None, timeout: int | None = None,
              allowed_tools: list[str] | None = None, cli_path: str = "claude") -> str:
-    model = model or os.environ.get("WORK_GRAPH_CC_MODEL") or DEFAULT_MODEL
-    timeout = timeout or int(os.environ.get("WORK_GRAPH_CC_TIMEOUT", DEFAULT_TIMEOUT))
+    model = model or os.environ.get("WORKGRAPH_CC_MODEL") or DEFAULT_MODEL
+    timeout = timeout or int(os.environ.get("WORKGRAPH_CC_TIMEOUT", DEFAULT_TIMEOUT))
     cmd = [cli_path, "--print", "--no-session-persistence", "--model", model]
     cmd += ["--allowedTools", ",".join(allowed_tools)] if allowed_tools else ["--tools", ""]
     env = subscription_env()

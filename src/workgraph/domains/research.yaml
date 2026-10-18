@@ -32,6 +32,8 @@ classifiers:
   - {stage: experiment, default: true}
 
 processors:
+  # Claude Code's own memory for the project (~/.claude/projects/<slug>/memory), if there is any
+  - {name: claude-memory, use: claude_memory}
   - {name: code,        use: ast}
   - {name: notes,       use: frontmatter, match: ["**/*.md"]}
   - {name: annotations, use: annotations, match: ["**/*.py", "**/*.R", "**/*.sh", "**/*.sql"]}

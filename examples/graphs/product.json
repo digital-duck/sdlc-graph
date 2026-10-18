@@ -1,5 +1,5 @@
 {
-  "schema": "work-graph/1",
+  "schema": "workgraph/1",
   "layer": "product",
   "nodes": [
     {
@@ -45,6 +45,11 @@
     {
       "source": "product:acme/retail/shop",
       "target": "process:sdlc",
+      "relation": "follows"
+    },
+    {
+      "source": "product:acme/retail/shop",
+      "target": "process:delivery",
       "relation": "follows"
     }
   ]

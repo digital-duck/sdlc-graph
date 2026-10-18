@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from work_graph.analyze import find_gaps
-from work_graph.domain import Workspace
-from work_graph.pipeline import build_workspace, stage_summary
+from workgraph.analyze import find_gaps
+from workgraph.domain import Workspace
+from workgraph.pipeline import build_workspace, stage_summary
 
 EX = Path(__file__).parent.parent / "examples"
 
@@ -57,9 +57,9 @@ def test_llm_items_domain_prompt_cache_and_gap_exemption(tmp_path, monkeypatch):
             {"title": "Ignore me", "kind": "nonsense", "stages": ["build"]},
         ]})
 
-    from work_graph import cc_cli
+    from workgraph import cc_cli
     monkeypatch.setattr(cc_cli, "complete", lambda prompt, **kw: fake(prompt, backend="cc_cli", max_tokens=0))
-    monkeypatch.setenv("WORK_GRAPH_CACHE", str(tmp_path / "cache"))
+    monkeypatch.setenv("WORKGRAPH_CACHE", str(tmp_path / "cache"))
     (tmp_path / "p" / "docs").mkdir(parents=True)
     (tmp_path / "p" / "docs" / "ROADMAP.md").write_text("# Roadmap\n- [ ] Support SSO\n")
     ws = _ws(tmp_path, ["p"])
@@ -88,13 +88,13 @@ def test_gap_filters_skip_trivial_files(tmp_path):
 
 def test_backend_resolution_order(monkeypatch):
     import pytest
-    from work_graph.llm import resolve_backend
+    from workgraph.llm import resolve_backend
 
-    monkeypatch.delenv("WORK_GRAPH_BACKEND", raising=False)
+    monkeypatch.delenv("WORKGRAPH_BACKEND", raising=False)
     assert resolve_backend(None, None, None) == "cc_cli"                      # default
     assert resolve_backend(None, None, "gemini") == "gemini"                  # processor value
     assert resolve_backend(None, "ollama", "gemini") == "ollama"              # project beats processor
-    monkeypatch.setenv("WORK_GRAPH_BACKEND", "bedrock")
+    monkeypatch.setenv("WORKGRAPH_BACKEND", "bedrock")
     assert resolve_backend(None, "ollama", "gemini") == "bedrock"             # env beats config files
     assert resolve_backend("claude-cli", "ollama", "gemini") == "claude-cli"  # explicit beats env
     with pytest.raises(ValueError, match="unknown LLM backend"):

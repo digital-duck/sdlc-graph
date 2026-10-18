@@ -2,7 +2,7 @@ import subprocess
 
 import pytest
 
-from work_graph import cc_cli
+from workgraph import cc_cli
 
 
 class _Done:

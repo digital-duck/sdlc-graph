@@ -11,7 +11,7 @@ Billing, because the names are easy to confuse:
 
 Resolution order, first hit wins:
     1. explicit argument            complete(..., backend="bedrock")
-    2. WORK_GRAPH_BACKEND env var   export WORK_GRAPH_BACKEND=bedrock      <- switch machines without editing YAML
+    2. WORKGRAPH_BACKEND env var   export WORKGRAPH_BACKEND=bedrock      <- switch machines without editing YAML
     3. project `backend:` in workspace.yaml
     4. processor `backend:` in the domain pack
     5. DEFAULT_BACKEND (cc_cli)
@@ -33,7 +33,7 @@ BILLING = {
     "claude": "Anthropic API, per token",
     "bedrock": "AWS account",
 }
-ENV_BACKEND = "WORK_GRAPH_BACKEND"
+ENV_BACKEND = "WORKGRAPH_BACKEND"
 
 
 def resolve_backend(*candidates: str | None) -> str:
@@ -100,7 +100,7 @@ def _claude_login() -> tuple[bool, str]:
     import subprocess
     try:
         r = subprocess.run(["claude", "auth", "status"], capture_output=True, text=True, timeout=30,
-                           env=__import__("work_graph.cc_cli", fromlist=["x"]).subscription_env())
+                           env=__import__("workgraph.cc_cli", fromlist=["x"]).subscription_env())
         info = json.loads(r.stdout)
     except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError):
         return False, "could not read `claude auth status`; run `claude` once to log in"
