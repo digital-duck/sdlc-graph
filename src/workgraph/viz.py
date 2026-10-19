@@ -106,7 +106,7 @@ CYTOSCAPE_PAGE = """<!doctype html>
 </style></head><body>
 <div id="bar"><b>__TITLE__</b><input id="q" placeholder="find a node" size="18" style="font-size:15px">
  <select id="layout" style="font-size:15px"><option>cose</option><option>breadthfirst</option><option>concentric</option><option>circle</option><option>grid</option></select>
- <button id="zin" title="Zoom in">+</button><button id="zout" title="Zoom out">&minus;</button><button id="zfit" title="Fit the whole graph">Fit</button>
+ <button id="zin" title="Zoom in">+</button><button id="zout" title="Zoom out">&minus;</button><button id="zfit" title="Fit the whole graph">Fit</button><button id="reset" title="Clear the selection, the highlight and the search">Reset</button>
  <span>__LEGEND__</span><span style="opacity:.7">__NOTE__</span></div>
 <div id="cy"></div><div id="side"><i>Click a node.</i></div>
 <script>__CYTOSCAPE__</script>
@@ -135,6 +135,11 @@ function zoomBy(f){ cy.zoom({level: cy.zoom() * f, renderedPosition: {x: cy.widt
 document.getElementById('zin').onclick = () => zoomBy(1.3);
 document.getElementById('zout').onclick = () => zoomBy(1 / 1.3);
 document.getElementById('zfit').onclick = () => cy.fit(undefined, 30);
+document.getElementById('reset').onclick = () => {
+  cy.elements().unselect().removeClass('faded');
+  document.getElementById('q').value = '';
+  document.getElementById('side').innerHTML = '<i>Click a node.</i>';
+};
 cy.on('tap','node', e => {
   const n = e.target, nb = n.closedNeighborhood();
   cy.elements().addClass('faded'); nb.removeClass('faded');

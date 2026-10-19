@@ -104,6 +104,17 @@ def map_tab(M, layer, project, kind, stage, chosen=None) -> None:
 FONT_CSS = "<style>html { font-size: 19px; } [data-testid='stDataFrame'] { font-size: 1rem; }</style>"
 
 
+def bar(series: pd.Series, height: int = 300) -> None:
+    """Bar chart with fixed-width bars (st.bar_chart stretches a few bars across the whole width)."""
+    import altair as alt
+    df = series.rename_axis("name").reset_index(name="count")
+    chart = (alt.Chart(df).mark_bar(size=44, color="#4f8ef7")
+             .encode(x=alt.X("name:N", sort="-y", title=None, axis=alt.Axis(labelAngle=0, labelLimit=160)),
+                     y=alt.Y("count:Q", title=None), tooltip=["name", "count"])
+             .properties(height=height))
+    st.altair_chart(chart, **WIDE)
+
+
 def main() -> None:
     st.markdown(FONT_CSS, unsafe_allow_html=True)
     st.title("Workgraph")
@@ -140,10 +151,10 @@ def main() -> None:
         a, b = st.columns(2)
         with a:
             st.markdown("**Nodes per layer**")
-            st.bar_chart(pd.Series(s["layers"], name="nodes"))
+            bar(pd.Series(s["layers"], name="nodes"))
         with b:
             st.markdown("**Artifacts per project**")
-            st.bar_chart(pd.Series(s["projects"], name="artifacts"))
+            bar(pd.Series(s["projects"], name="artifacts"))
         st.markdown("**Artifacts by kind**")
         st.dataframe(pd.DataFrame(sorted(s["kinds"].items(), key=lambda x: -x[1]), columns=["kind", "count"]),
                      **WIDE, hide_index=True)
