@@ -24,12 +24,14 @@ Legend: **built** = implemented and covered by tests or a live run; **partial** 
 | Layers | Per-layer vocabulary as YAML packs | not built | kinds and relations are Python constants in `schema.py` |
 | Formats | JSON <-> YAML converters (`convert`) | built | round-trip test |
 | Formats | Comment store: anchored comments restored on JSON -> YAML; orphans kept | built | tests; comments inside hand-written flow-style items attach to the whole item; renaming a node id orphans its comments |
-| Home | Home folder `~/workgraph` (`WORKGRAPH_HOME`), `init`, `track`, default workspace | built | tests |
+| Home | Home folder `~/workgraph` (`WORKGRAPH_HOME`), `init`, `track`, default workspace; `custom/` for user-authored files (`custom/graphs/`), with an explanatory README and automatic move of the old `graphs/` | built | tests |
 | Home | `--src <folder or git URL>` ad-hoc builds, shallow clones into `<home>/src` | built | tests (clone mocked); live clone of this repo over https |
 | Home | graphify AST cache moved into `<home>/cache/ast` | built | output compared byte-for-byte before and after |
+| UX | Build progress on stderr (per project, per slow step, per LLM document) and a closing timing table; `--quiet` / `WORKGRAPH_QUIET` | built | tests. First use found that file scanning, not parsing, dominated a 113-file project, which led to the next row |
+| Perf | File scan reuses graphify's per-folder ignore cache | built | conceptbook-app: scan 34.7s to 6.0s, identical file list (11,260 files) and identical graph |
 | Search | `status`, `show`, `search` (keyword), `context` | built | tests |
 | Search | Semantic search: Ollama embeddings (cached) | built | tests with a fake server; live with `nomic-embed-text` |
-| Search | Semantic search: sentence-transformers | partial | code path written; not run (package not installed here) |
+| Search | Semantic search: sentence-transformers | built | live in the `graf` env (MiniLM, CPU by default because the pip-chosen PyTorch lacked kernels for a GTX 1080 Ti); not covered by automated tests, since the package is optional |
 | Search | TF-IDF fallback, labelled as lexical | built | tests |
 | UI | Streamlit app (`workgraph ui`): overview, search, browse, gaps, node panel | built | headless app tests and a server health check; not looked at in a browser by the author |
 | Claude Code | Hooks `session-start` / `session-end`: track project, journal, context summary, background rebuild | built | tests with simulated payloads; headless Claude sessions |
@@ -39,7 +41,7 @@ Legend: **built** = implemented and covered by tests or a live run; **partial** 
 | Claude Code | `import-claude`: track the projects Claude Code worked in; session metadata (and optional titles) into the journal | built | tests; live on this machine in a scratch home: 42 folders, 65 sessions. Dry run by default; message text is never stored |
 | Privacy | Database renamed `workgraph.sqlite3` and kept at the top of the home folder, away from every synced or committed folder; `*.sqlite*`/`*.db` git-ignored | built | tests; old `graphs/store.sqlite` moves over automatically |
 | Privacy | Guards on export and push: database files, files over 5 MB and secret patterns stop the operation; org layer, sessions and LLM cache are opt-in | built | tests |
-| Sync | `export` / `import` tar.gz (USB, first setup) with safe extraction | built | tests; live between two scratch homes |
+| Sync | `dump` / `load` tar.gz (USB, first setup) with safe extraction | built | tests; live between two scratch homes |
 | Sync | `sync init/push/pull/status` through a private git repository, 3-way file merge that never overwrites local work, JSONL for comments, uid history and sessions | built | tests with a local bare repo; live between two scratch homes. Not run against GitHub: the privacy check through `gh` is untested |
 | Sync | Portable `workspace.yaml` (repo URLs, no local folders); `track` binds a folder; `sync pull --clone-missing` | built | tests |
 | Server | A shared server for teams or enterprises (accounts, access control, concurrent writers) | not built | out of scope: workgraph is a personal assistant; a server design comes if it grows into a team product |
@@ -101,7 +103,7 @@ An ID's prefix names its layer: `org:`, `product:`, `process:`, and `stage:` and
 
 ## 4. Layer files
 
-One file per layer, kept together in a single directory next to `workspace.yaml` (`graphs:` key, default `graphs/`):
+One file per layer, kept together in a single directory: `<home>/custom/graphs/` for the default workspace, or a `graphs/` folder next to a workspace file (the `graphs:` key overrides). The `custom/` folder is the place for everything the user authors, and has room for future things such as user-written domain packs:
 
 ```
 examples/graphs/
@@ -154,7 +156,7 @@ Nothing downstream sees unresolved references, and the resolved graph is what `b
 
 ## 5. Dual formats and conversion (`convert.py`)
 
-JSON is canonical and is what the loader reads. YAML exists for review. `workgraph convert <file>` converts by extension: `.yaml` to `.json`, `.json` to `.yaml`. The YAML writer is `ruamel.yaml`, with a fixed layout (block style, `id` first, a fixed key order, sequences indented under their key) so that the comment store can find items reliably.
+JSON is canonical and is what the loader reads. YAML exists for review. `workgraph utils convert <file>` converts by extension: `.yaml` to `.json`, `.json` to `.yaml`. The YAML writer is `ruamel.yaml`, with a fixed layout (block style, `id` first, a fixed key order, sequences indented under their key) so that the comment store can find items reliably.
 
 Rules:
 
@@ -164,7 +166,7 @@ Rules:
 
 ## 6. Comment store (`store.py`)
 
-YAML comments have no JSON equivalent. The SQLite database (`<home>/workgraph.sqlite3`, at the top of the home folder and never inside `graphs/` or `sync/`) keeps them:
+YAML comments have no JSON equivalent. The SQLite database (`<home>/workgraph.sqlite3`, at the top of the home folder and never inside `custom/` or `sync/`) keeps them:
 
 | Table | Columns | Purpose |
 |---|---|---|
@@ -188,16 +190,22 @@ Limitations of the prototype: comments are matched at item level plus one key. C
 
 ## 7. Commands
 
+Fourteen top-level commands, listed alphabetically in `--help`; the helpers sit under `utils` so the list stays short.
+
 | Command | Does |
 |---|---|
-| `build`, `gaps`, `clones`, `open` | the repo graph from a workspace file, the default workspace, or `--src` folders and URLs; `build` also merges the layer files |
-| `check` | validate layer files and references, report renames, stale YAML, missing uids (`--assign-uids` writes uids) |
-| `convert FILE` | JSON <-> YAML with the comment store |
+| `build`, `gaps`, `open` | the repo graph from a workspace file, the default workspace, or `--src` folders and URLs; `build` also merges the layer files |
 | `init`, `track PATH` | create the home folder; add a project to the default workspace |
-| `status`, `search`, `show`, `context` | query the last built graph (`search --semantic` for embeddings) |
+| `status`, `search`, `show` | query the last built graph (`search --semantic` for embeddings) |
 | `ui` | Streamlit app |
-| `claude-setup [--write]`, `hook EVENT` | Claude Code hooks and the plain `/workgraph` command; the hook handler |
-| `llm`, `doctor`, `domains` | backend readiness, environment check, list packs |
+| `import-claude` | backfill from Claude Code |
+| `dump`, `load` | pack the authored data into a tar.gz / merge one (formerly `export` / `import`) |
+| `sync init|push|pull|status` | share through a private git repository |
+| `utils check` | validate layer files and references, report renames, stale YAML, missing uids (`--assign-uids` writes uids) |
+| `utils convert FILE` | JSON <-> YAML with the comment store |
+| `utils claude-setup [--write]` | Claude Code hooks and the plain `/workgraph` command |
+| `utils clones`, `utils context`, `utils doctor`, `utils domains`, `utils show-llm` | shared files, project context, environment check, list packs, backend readiness (formerly `llm`) |
+| `hook EVENT` | hidden top-level: the Claude Code hook handler. It stays out of the help list and keeps its name because installed hooks call it |
 
 ## 8. Module map
 
@@ -214,7 +222,7 @@ src/workgraph/
   tracking.py      # init, track
   claude_code.py   # hooks, context summary, settings and command installation
   query.py         # load, keyword and semantic search, neighbourhoods, gaps
-  ui/app.py        # Streamlit app
+  ui/streamlit/    # Streamlit app (one folder per UI framework under ui/, so others can be added)
   data/            # packaged copy of the /workgraph command (kept identical to plugin/commands/workgraph.md)
 plugin/            # Claude Code plugin (held back; draft marketplace file in docs/DEV/)
 ```
@@ -265,7 +273,7 @@ The useful split is **what can be rebuilt** and **what cannot**:
 | Content | Rebuildable? | Synced? |
 |---|---|---|
 | Repo graph (`out/`), AST cache, embeddings, `src/` clones | yes, one `build` | never |
-| Layer files (`graphs/`) | no, authored | yes (`graphs` part). The **org** layer lists people and is **opt-in** (`--with org`) |
+| Layer files (`custom/graphs/`) | no, authored | yes (`graphs` part, stored as `graphs/` in the sync tree). The **org** layer lists people and is **opt-in** (`--with org`) |
 | YAML comments, uid history | no | yes, as `store/comments.jsonl` and `store/node_ids.jsonl` (`comments` part) |
 | Session journal | no | opt-in (`--with sessions`): it lists changed file names |
 | LLM extraction cache | only by spending subscription time again | opt-in (`--with llm-cache`) |
@@ -287,8 +295,8 @@ The useful split is **what can be rebuilt** and **what cannot**:
 
 **Workflow.**
 ```
-machine A:  workgraph export -o workgraph.tar.gz          # USB stick, once
-machine B:  workgraph import workgraph.tar.gz
+machine A:  workgraph dump -o workgraph.tar.gz          # USB stick, once
+machine B:  workgraph load workgraph.tar.gz
 both:       workgraph sync init git@github.com:you/my-workgraph.git     # a PRIVATE repository
 then:       workgraph sync push   /   workgraph sync pull [--clone-missing]   /   workgraph sync status
 ```

@@ -34,7 +34,7 @@ All three read the same files in the home folder (`~/workgraph`). For a guided w
 | **Confidence** | `EXTRACTED` (explicit in the source), `INFERRED` (derived or LLM-suggested), `AMBIGUOUS`. |
 | **Gap** | An artifact missing a link its domain pack expects, such as a requirement with no test. |
 | **Layer** | One of several graphs that reference each other: `repo` (built from your projects), `product`, `org` and `process` (written as layer files). Every node has a `layer`. |
-| **Layer file** | A JSON file (with a YAML twin for review) in `<home>/graphs/` that defines a product, org or process layer. See "Layers". |
+| **Layer file** | A JSON file (with a YAML twin for review) in `<home>/custom/graphs/` that defines a product, org or process layer. See "Layers". |
 | **Home folder** | `~/workgraph` (or `$WORKGRAPH_HOME`): the default workspace, layer files, the built graph, caches and clones. |
 
 Inside the repo layer, the **process nodes** are the stages and projects (`stage:sdlc:requirement` ...) and the **knowledge nodes** are your artifacts. Analysis runs on the knowledge nodes only. Layers are covered below.
@@ -99,7 +99,7 @@ Covered items (REQ-001, `cart.py`, Q1, H1) are not listed. Broken references are
 `cc_cli` uses your Claude Code subscription (SETUP.md, section 5). Check it first, then extract work items from the planning docs:
 
 ```bash
-workgraph llm  -c examples/acme-shop/workspace.yaml --adapter cc_cli
+workgraph utils show-llm  -c examples/acme-shop/workspace.yaml --adapter cc_cli
 workgraph open -c examples/acme-shop/workspace.yaml --semantic --adapter cc_cli
 ```
 
@@ -150,7 +150,7 @@ Per-project options:
 ```bash
 workgraph build -c workspace.yaml
 workgraph gaps  -c workspace.yaml
-workgraph clones -c workspace.yaml
+workgraph utils clones -c workspace.yaml
 ```
 
 **3. Add the LLM pass** when you want work items:
@@ -191,7 +191,7 @@ Claude Code can do the tracking for you (see "Using workgraph as the memory of C
 
 ## Layers: product, org and process
 
-Besides the repo graph, workgraph holds graphs that describe the work around the code. Each is a **layer file** in `<home>/graphs/` (or in a `graphs/` folder next to the workspace file you pass with `-c`; the bundled `examples/graphs/` has three):
+Besides the repo graph, workgraph holds graphs that describe the work around the code. Each is a **layer file** in `<home>/custom/graphs/` (or in a `graphs/` folder next to the workspace file you pass with `-c`; the bundled `examples/graphs/` has three):
 
 | Layer | Node kinds | Contains |
 |---|---|---|
@@ -228,8 +228,8 @@ Relations between layers: `part_of` (child to parent, inside one layer), `preced
 At build time all layer files are loaded, every reference is resolved, and everything is merged into one graph with a `layer` on each node. Two commands help you author them:
 
 ```bash
-workgraph check -c workspace.yaml      # validate the files and every reference
-workgraph convert graphs/product.yaml  # YAML -> JSON (and the reverse for a .json file)
+workgraph utils check -c workspace.yaml      # validate the files and every reference
+workgraph utils convert graphs/product.yaml  # YAML -> JSON (and the reverse for a .json file)
 ```
 
 `check` reports invalid files, broken references (with a "renamed to ..." hint when the `uid` shows a node was renamed), YAML files edited since the last conversion, and nodes with no `uid` (`check --assign-uids` fills them in). The loader reads only the JSON files; YAML is for people. **JSON is canonical, YAML is for review**: edit the YAML, add comments, then run `convert`. Comments are saved in the database (`<home>/workgraph.sqlite3`) and put back whenever the YAML is regenerated from the JSON, so they are never lost. A comment on a node that was later deleted is kept at the end of the file as `# [orphaned from <id>] ...`.
@@ -274,27 +274,35 @@ A reference to something that does not exist (`REQ-099` above) is reported as a 
 
 | Command | Purpose |
 |---|---|
-| `workgraph domains` | list the shipped domain packs and their stages |
-| `workgraph doctor` | show which Python, environment, graphify and default backend are in use; warns if you are in conda base |
-| `workgraph build` | build the graph, print a per-stage summary, write `<home>/out/graph.json` |
-| `workgraph gaps` | report artifacts missing links that their pack expects, plus broken references |
-| `workgraph clones` | list files shared across projects (`=` identical, `~` same path but different) |
-| `workgraph open` | list open work items extracted by the LLM pass (use with `--semantic`) |
-| `workgraph llm` | show the resolved LLM backend per processor, its billing mode, and readiness |
-| `workgraph check` | validate the layer files (`graphs/`) and every cross-graph reference |
-| `workgraph convert FILE` | convert a layer file JSON <-> YAML; YAML comments are saved in and restored from the store |
 | `workgraph init` | create the home folder (`~/workgraph`) and a starter workspace |
 | `workgraph track [PATH]` | add a project folder to the default workspace |
-| `workgraph claude-setup` | show, or with `--write` install, the Claude Code hooks and the `/workgraph` command (see below) |
+| `workgraph build` | build the graph, print a per-stage summary, write `<home>/out/graph.json` |
+| `workgraph gaps` | report artifacts missing links that their pack expects, plus broken references |
+| `workgraph open` | list open work items extracted by the LLM pass (use with `--semantic`) |
 | `workgraph status` | summary of the last build: layers, projects, gaps |
 | `workgraph search QUERY` | keyword search over the built graph; `--semantic` ranks by meaning (see below) |
 | `workgraph show NODE` | one node's attributes and links (a node id, or a label such as `REQ-002`) |
-| `workgraph context [PATH]` | what the graph knows about the project at PATH (what Claude Code gets at session start) |
 | `workgraph ui` | open the Streamlit app to review and query the graph |
 | `workgraph import-claude` | backfill from Claude Code: track the projects it has worked in and load its session metadata (dry run unless `--apply`) |
-| `workgraph export -o FILE` / `import FILE` | pack your authored graph data into a tar.gz (a USB stick) and merge one on another machine |
+| `workgraph dump -o FILE` | pack your authored graph data into a tar.gz (a USB stick), without the database |
+| `workgraph load FILE` | merge such a tar.gz into this machine |
 | `workgraph sync init|push|pull|status` | share your workgraph between machines through a private git repository |
-| `workgraph hook EVENT` | the Claude Code hook handler (`session-start`, `session-end`); installed for you, rarely run by hand |
+| `workgraph utils SUBCOMMAND` | helper commands, below |
+
+**Helper commands**, `workgraph utils ...`:
+
+| Subcommand | Purpose |
+|---|---|
+| `check` | validate the layer files (`custom/graphs/`) and every cross-graph reference |
+| `convert FILE` | convert a layer file JSON <-> YAML; YAML comments are saved in and restored from the database |
+| `claude-setup` | show, or with `--write` install, the Claude Code hooks and the `/workgraph` command (see below) |
+| `clones` | list files shared across projects (`=` identical, `~` same path but different) |
+| `context [PATH]` | what the graph knows about the project at PATH (what Claude Code gets at session start) |
+| `doctor` | show which Python, environment, graphify and default backend are in use; warns if you are in conda base |
+| `domains` | list the shipped domain packs and their stages |
+| `show-llm` | show the resolved LLM backend per processor, its billing mode, and readiness |
+
+There is also a hidden `workgraph hook EVENT` (`session-start`, `session-end`): the Claude Code hook handler. It is installed for you, never needs typing, and keeps its name so installed hooks keep working.
 
 Options (not every option applies to every command; `workgraph <command> --help` shows the exact set):
 
@@ -302,14 +310,28 @@ Options (not every option applies to every command; `workgraph <command> --help`
 |---|---|
 | `--src URL_OR_PATH` | build from a local folder or a git URL (shallow-cloned into `<home>/src`) instead of a workspace file; repeat it for several. Not combinable with `-c` |
 | `--domain NAME` | domain pack for `--src` projects (default `sdlc`) |
-| `-c`, `--config FILE` | workspace file (default: `./workspace.yaml`, else `<home>/workspace.yaml`) |
+| `-c`, `--config FILE` | workspace file. Default: `./workspace.yaml`, else `<home>/workspace.yaml`. A relative name that is not in the current folder is also looked for in `<home>`, so `-c workspace.yaml` finds your default workspace from anywhere |
 | `--semantic` | also run the LLM processors |
 | `--adapter NAME` | LLM backend: `cc_cli` (subscription), `bedrock` (AWS), or any graphify backend |
 | `-o`, `--out DIR` | output folder (default `<home>/out`) |
+| `-q`, `--quiet` | no progress or timing output (also: set `WORKGRAPH_QUIET=1`) |
+
+### Progress and timing
+
+Commands that build the graph (`build`, `gaps`, `open`, `utils clones`) show progress on **stderr** while they run, so what you pipe or redirect (stdout) still holds only the results:
+
+```
+Building 3 projects ...
+[1/3] conceptbook-app ...
+[1/3] conceptbook-app  1,263 nodes  8.4s   (scan files 6.0s, code (tree-sitter) 2.2s)
+[2/3] ...
+```
+
+One line when a project starts and one when it finishes, with its node count and time, and a breakdown of the steps that took half a second or more. Slow shared steps (assembling the graph, clustering, merging layer files) get their own line when they take more than half a second, and on a terminal a "... " marker shows while they run. With `--semantic` the LLM step says how many documents it will read and prints `LLM 2/4: <file>` before each call that is not already cached. `build` ends with a **timing table**, largest first, on stdout. Add `-q` to silence it all.
 
 ### The home folder
 
-Data lives in `~/workgraph` (set `WORKGRAPH_HOME` to move it): the default `workspace.yaml`, `graphs/` (layer files), `workgraph.sqlite3` (comments, uid history, session journal), `out/graph.json`, `cache/`, `src/` (clones for `--src` URLs) and `sync/` (see "Moving to another machine"). `workgraph init` creates it. Because workgraph is installed as a package, nothing is written next to the code or into your projects. See SETUP.md, section 7.
+Data lives in `~/workgraph` (set `WORKGRAPH_HOME` to move it): the default `workspace.yaml`, `custom/` (everything you author yourself: your layer files in `custom/graphs/`), `workgraph.sqlite3` (comments, uid history, session journal), `out/graph.json`, `cache/`, `src/` (clones for `--src` URLs) and `sync/` (see "Moving to another machine"). `workgraph init` creates it. Because workgraph is installed as a package, nothing is written next to the code or into your projects. See SETUP.md, section 7.
 
 ### Searching and reviewing the graph
 
@@ -327,10 +349,10 @@ Keyword search ranks matches in a node's name above matches in its path, summary
 | Backend | Needs | Notes |
 |---|---|---|
 | `ollama` | a running Ollama with an embedding model: `ollama pull nomic-embed-text` (change it with `WORKGRAPH_EMBED_MODEL`) | local, free; vectors are cached in `<home>/cache/embeddings`, so only new or changed nodes are embedded |
-| `sbert` | `python -m pip install 'workgraph[semantic]'` | sentence-transformers, `all-MiniLM-L6-v2` |
+| `sbert` | nothing extra: sentence-transformers is installed with workgraph | sentence-transformers, `all-MiniLM-L6-v2` (downloaded once from Hugging Face). Runs on the CPU by default; set `WORKGRAPH_EMBED_DEVICE=cuda` to use a GPU |
 | `tfidf` | nothing | **lexical** (shared words), not meaning; used as the fallback, and the output says so |
 
-`workgraph ui` needs `python -m pip install 'workgraph[ui]'`. It has an Overview (counts per layer, project and kind), Search (keyword or semantic, with the backend shown), Browse and Gaps tabs. Click a row to see a node's attributes, its links in and out, and a diagram of its neighbourhood. Sidebar filters (layer, project, kind, stage) apply everywhere, and *Reload* picks up a new build.
+`workgraph ui` is part of the normal install. It has an Overview (counts per layer, project and kind), Search (keyword or semantic, with the backend shown), Browse and Gaps tabs. Click a row to see a node's attributes, its links in and out, and a diagram of its neighbourhood. Sidebar filters (layer, project, kind, stage) apply everywhere, and *Reload* picks up a new build.
 
 ### Using workgraph as the memory of Claude Code
 
@@ -344,8 +366,8 @@ claude --plugin-dir <path to this repo>/plugin
 
 ```bash
 # B. plain settings: hooks plus the shorter command /workgraph
-workgraph claude-setup            # prints the settings.json snippet
-workgraph claude-setup --write    # merges it into ~/.claude/settings.json (a .bak copy is kept) and adds ~/.claude/commands/workgraph.md
+workgraph utils claude-setup            # prints the settings.json snippet
+workgraph utils claude-setup --write    # merges it into ~/.claude/settings.json (a .bak copy is kept) and adds ~/.claude/commands/workgraph.md
 ```
 
 Plugin commands always carry the plugin name, which is why route A gives `/workgraph:workgraph` and route B gives `/workgraph`.
@@ -377,9 +399,9 @@ Use a **private** GitHub repository for ongoing sync, and a tar.gz for the first
 
 ```bash
 # machine A, once: a USB stick
-workgraph export -o workgraph.tar.gz
+workgraph dump -o workgraph.tar.gz
 # machine B
-workgraph import workgraph.tar.gz
+workgraph load workgraph.tar.gz
 
 # both machines: ongoing, through a private repository
 workgraph sync init git@github.com:you/my-workgraph.git     # refuses a public repository
@@ -406,7 +428,7 @@ workgraph build --semantic --adapter cc_cli -c workspace.yaml
 workgraph build --semantic --adapter bedrock -c workspace.yaml
 ```
 
-Always run `workgraph llm --adapter <name>` first if you are unsure: it shows the billing mode and what is missing.
+Always run `workgraph utils show-llm --adapter <name>` first if you are unsure: it shows the billing mode and what is missing.
 
 ### What the LLM pass does and costs
 
@@ -444,7 +466,10 @@ Useful node attributes: `kind`, `label`, `project`, `domain`, `stages` (list), `
 
 ## Customizing a domain pack
 
-Packs live in `src/workgraph/domains/*.yaml`. To adapt the `sdlc` pack, edit or copy it. A copy can be used by path:
+Built-in packs live in `src/workgraph/domains/*.yaml`. Your own go in `<home>/custom/domains/<name>.yaml` and are
+used by name (`domain: my-process`); `workgraph utils domains` lists them marked `(custom)`. A custom pack with the
+same name as a built-in one replaces it. To start, copy a built-in pack there and edit it. A pack anywhere else can
+be used by path:
 
 ```yaml
 projects:
@@ -489,14 +514,14 @@ The same engine works for other domains by switching the pack: `research` (quest
 | `gaps` lists every code file | The project has no tests that import the code. Real signal, or add `# verifies:` annotations. |
 | `limit reached` during `--semantic` | Subscription limit. Rerun later; cached documents are not repeated. |
 | A reference warning for an id that exists | The id is case-insensitive but must match the `id:` frontmatter value after normalization (`REQ-001` and `req_001` are the same). Check for typos and that the file has frontmatter. |
-| Not sure which backend or billing applies | `workgraph llm -c workspace.yaml --adapter <name>`. |
-| `workgraph ui` shows an error mentioning `_ARRAY_API` or `numpy.core.multiarray` | A NumPy 2 with a pyarrow built for NumPy 1, usually in conda *base*. Use the dedicated environment from SETUP.md and `python -m pip install 'workgraph[ui]'`. |
-| `search --semantic` says it used TF-IDF | No embedding backend was available, so the ranking is lexical. Start Ollama and `ollama pull nomic-embed-text`, or install `workgraph[semantic]`. |
-| `check` says `X.yaml: edited since the last convert` | The loader reads JSON only. Run `workgraph convert X.yaml`. |
+| Not sure which backend or billing applies | `workgraph utils show-llm -c workspace.yaml --adapter <name>`. |
+| `workgraph ui` shows an error mentioning `_ARRAY_API` or `numpy.core.multiarray` | A NumPy 2 with a pyarrow built for NumPy 1, usually in conda *base*. Use the dedicated environment from SETUP.md. |
+| `search --semantic` says it used TF-IDF | No embedding backend was available, so the ranking is lexical. Start Ollama and `ollama pull nomic-embed-text`, or check that sentence-transformers imports in your environment (`python -c "import sentence_transformers"`). |
+| `check` says `X.yaml: edited since the last convert` | The loader reads JSON only. Run `workgraph utils convert X.yaml`. |
 | `sync init` says it cannot verify the repository is private | It checks GitHub through the `gh` CLI. Install and log in to `gh`, or confirm yourself with `--confirm-private` after checking. A public repository is always refused. |
-| `sync` or `export` stops with "refusing to export" | The scan found a database, a large file or something shaped like a key. Remove it from the listed file; nothing was written to the repository. |
+| `sync` or `dump` stops with "refusing to export" | The scan found a database, a large file or something shaped like a key. Remove it from the listed file; nothing was written to the repository. |
 | After a pull, `unresolved: <project>` | That project has no folder here. `workgraph track <folder>` or `workgraph sync pull --clone-missing`. |
-| A `.incoming.json` file appeared in `graphs/` | The layer file changed on both machines. Merge the two by hand, delete the `.incoming` copy, run `workgraph check`. |
-| `/workgraph` is not found in Claude Code | Plugin installs give `/workgraph:workgraph`. For the plain name run `workgraph claude-setup --write`. |
+| A `.incoming.json` file appeared in `custom/graphs/` | The layer file changed on both machines. Merge the two by hand, delete the `.incoming` copy, run `workgraph utils check`. |
+| `/workgraph` is not found in Claude Code | Plugin installs give `/workgraph:workgraph`. For the plain name run `workgraph utils claude-setup --write`. |
 | `claude -p` fails with a model error | `ANTHROPIC_MODEL` points at a retired model. Unset it or set a current one. workgraph's own LLM calls use `WORKGRAPH_CC_MODEL`, not that variable. |
 | The graph looks stale after working in Claude Code | The session-end rebuild runs in the background; see `<home>/out/build.log`, or run `workgraph build`. |

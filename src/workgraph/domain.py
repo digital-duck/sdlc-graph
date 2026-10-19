@@ -13,6 +13,8 @@ from pathlib import Path
 
 import yaml
 
+from . import paths
+
 DOMAINS_DIR = Path(__file__).parent / "domains"
 # Node kinds that are structure, not knowledge: excluded from gap checks and summaries.
 STRUCTURAL_KINDS = {"stage", "project", "rationale", "symbol", "external"}
@@ -29,8 +31,14 @@ def glob_match(path: str, globs: list[str]) -> bool:
     return any(fnmatchcase(path, g.casefold()) or fnmatchcase("/" + path, g.casefold()) for g in globs)
 
 
+def custom_domain_files() -> dict[str, Path]:
+    """Your own packs: <home>/custom/domains/<name>.yaml (or .yml), by name."""
+    d = paths.custom_domains_dir()
+    return {p.stem: p for p in sorted(d.glob("*.y*ml")) if p.suffix in (".yaml", ".yml")} if d.is_dir() else {}
+
+
 def available_domains() -> list[str]:
-    return sorted(p.stem for p in DOMAINS_DIR.glob("*.yaml"))
+    return sorted({p.stem for p in DOMAINS_DIR.glob("*.yaml")} | set(custom_domain_files()))
 
 
 @dataclass
@@ -64,7 +72,7 @@ class Domain:
     def load(cls, name_or_path: str | Path) -> "Domain":
         p = Path(name_or_path)
         if p.suffix not in (".yaml", ".yml"):
-            p = DOMAINS_DIR / f"{name_or_path}.yaml"
+            p = custom_domain_files().get(str(name_or_path)) or DOMAINS_DIR / f"{name_or_path}.yaml"   # yours win
             if not p.exists():
                 raise ValueError(f"unknown domain {name_or_path!r}; available: {available_domains()}")
         raw = yaml.safe_load(p.read_text(encoding="utf-8"))
@@ -169,5 +177,11 @@ class Workspace:
                     continue
             projects.append(Project(p["name"], folder, cache[dn],
                                     p.get("backend", raw.get("backend")), p.get("ignore", [])))
-        graphs = path.parent / raw["graphs"] if raw.get("graphs") else path.parent / "graphs"
+        from . import paths
+        if raw.get("graphs"):
+            graphs = path.parent / raw["graphs"]
+        elif path.parent.resolve() == paths.home().resolve():     # the default workspace: layer files live in custom/
+            graphs = paths.graphs_dir()
+        else:
+            graphs = path.parent / "graphs"
         return cls(projects, graphs.resolve() if graphs.is_dir() else None, unresolved)

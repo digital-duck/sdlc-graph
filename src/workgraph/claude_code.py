@@ -1,6 +1,6 @@
 """Claude Code integration: workgraph as the memory of your Claude Code sessions.
 
-Two hooks (installed with `workgraph claude-setup`):
+Two hooks (installed with `workgraph utils claude-setup`):
   SessionStart  track the project you opened (adds it to the default workspace), log the session, and print a short
                 summary of what the graph already knows (stages, gaps, open items, product, owner, recent sessions).
                 Claude Code adds that output to the session's context.

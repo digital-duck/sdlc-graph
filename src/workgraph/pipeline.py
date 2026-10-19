@@ -1,6 +1,7 @@
 """Workspace build: process layer + per-project processors -> tagged, linked knowledge graph."""
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 import networkx as nx
@@ -12,6 +13,7 @@ from .domain import STRUCTURAL_KINDS, Project, Workspace, make_id
 from . import paths
 from .links import cross_project_links
 from .processors import run_processors
+from .progress import NullProgress, set_current
 from .refs import merge_layers
 from .store import Store
 
@@ -134,28 +136,46 @@ def knowledge_layer(G: nx.Graph) -> nx.Graph:
     return G.subgraph([n for n, d in G.nodes(data=True) if d.get("kind") not in ("stage", "project")])
 
 
-def build_workspace(ws: Workspace, *, semantic: bool = False) -> tuple[nx.MultiDiGraph, dict, list[str]]:
-    """Returns (graph, communities, warnings). Communities are computed on the knowledge layer only."""
+def build_workspace(ws: Workspace, *, semantic: bool = False, progress=None) -> tuple[nx.MultiDiGraph, dict, list[str]]:
+    """Returns (graph, communities, warnings). Communities are computed on the knowledge layer only.
+    `progress` (a progress.Progress) prints per-project progress and collects timings; the default prints nothing."""
+    prog = progress or NullProgress()
+    set_current(prog)
+    try:
+        return _build_workspace(ws, semantic, prog)
+    finally:
+        set_current(NullProgress())
+
+
+def _build_workspace(ws: Workspace, semantic: bool, prog) -> tuple[nx.MultiDiGraph, dict, list[str]]:
     warnings: list[str] = []
+    prog.begin(len(ws.projects), semantic)
     extractions = [d.process_extraction() for d in ws.domains.values()]
     refs: list[tuple[Project, dict]] = []
     project_exs = []
-    for p in ws.projects:
-        raw = run_processors(p, semantic=semantic)
+    for i, p in enumerate(ws.projects, 1):
+        prog.project_start(i, len(ws.projects), p.name)
+        t0, steps = time.perf_counter(), []
+        raw = run_processors(p, semantic=semantic, steps=steps)
         refs += [(p, r) for r in raw.pop("refs")]
         warnings += [f"{p.name}: {w}" for w in raw.pop("warnings", [])]
         project_exs.append(_tag(p, raw, warnings))
+        prog.project_done(i, len(ws.projects), p.name, time.perf_counter() - t0, steps, len(project_exs[-1]["nodes"]))
     extractions += project_exs
-    extractions.append({"nodes": [], "hyperedges": [], "edges": _resolve_refs(ws.projects, refs, project_exs, warnings)})
-    # dedup off: label-similarity merging could fuse distinct requirements/decisions.
-    G = build(extractions, directed=True, dedup=False)
-    _adopt_externals(G, ws)
-    communities = cluster(knowledge_layer(G)) if knowledge_layer(G).number_of_nodes() else {}
+    with prog.phase("assembling the graph", "assemble graph"):
+        extractions.append({"nodes": [], "hyperedges": [], "edges": _resolve_refs(ws.projects, refs, project_exs, warnings)})
+        # dedup off: label-similarity merging could fuse distinct requirements/decisions.
+        G = build(extractions, directed=True, dedup=False)
+        _adopt_externals(G, ws)
+    with prog.phase("clustering communities", "clustering"):
+        communities = cluster(knowledge_layer(G)) if knowledge_layer(G).number_of_nodes() else {}
     M = nx.MultiDiGraph(G)  # multi-edges: a structural edge and a flow edge can join the same pair
-    derive_flow_edges(M, ws)
-    M.graph["clones"] = cross_project_links(M, ws)
+    with prog.phase("linking (flow edges, clones)", "linking"):
+        derive_flow_edges(M, ws)
+        M.graph["clones"] = cross_project_links(M, ws)
     store = Store(paths.store_path()) if ws.graphs_dir and paths.store_path().exists() else None
-    warnings += merge_layers(M, ws, store)
+    with prog.phase("merging layer files", "layers"):
+        warnings += merge_layers(M, ws, store)
     if store:
         store.close()
     return M, communities, warnings

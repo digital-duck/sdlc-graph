@@ -10,23 +10,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 conda create -n graf python=3.11 pip -y && conda activate graf   # dedicated env; always use `python -m pip`
-python -m pip install -e ".[dev]"      # extras: dev, bedrock, leiden, mcp
-workgraph doctor                      # warns [!!] if running in conda base
+python -m pip install -e ".[dev]"      # extras: dev, bedrock, leiden, mcp. streamlit and sentence-transformers (PyTorch) are default dependencies
+workgraph utils doctor                      # warns [!!] if running in conda base
 
 python -m pytest                       # all tests (tests/)
 python -m pytest tests/test_pipeline.py::test_name   # single test
 
-workgraph domains
+workgraph utils domains
 workgraph gaps --src <path-or-git-url>              # ad-hoc: no workspace file needed (URLs are shallow-cloned into <home>/src)
 workgraph init / track <path>                       # home folder + default workspace; `claude-setup` installs the Claude Code hooks
 workgraph status / search "text" [--semantic] / show NODE / ui   # query the built graph
 workgraph build -c examples/workspace.yaml          # writes <home>/out/graph.json (home = ~/workgraph or $WORKGRAPH_HOME)
 workgraph gaps  -c examples/workspace.yaml
-workgraph clones -c examples/workspace.yaml
-workgraph check -c examples/workspace.yaml          # layer files + cross-graph references
-workgraph convert examples/graphs/org.json          # JSON <-> YAML via the comment store
+workgraph utils clones -c examples/workspace.yaml
+workgraph utils check -c examples/workspace.yaml          # layer files + cross-graph references (helper commands live under `utils`; `llm` is `utils show-llm`; export/import are `dump`/`load`)
+workgraph utils convert examples/graphs/org.json          # JSON <-> YAML via the comment store
 workgraph open --semantic --adapter cc_cli -c examples/acme-shop/workspace.yaml   # LLM work items
-workgraph llm -c workspace.yaml       # resolved backend / billing / readiness per processor
+workgraph utils show-llm -c workspace.yaml       # resolved backend / billing / readiness per processor
 ```
 
 No linter is configured. LLM processors only run with `--semantic`; the structural build needs no LLM.
@@ -46,12 +46,14 @@ Pipeline (`src/workgraph/pipeline.py::build_workspace`): for each project in a `
 
 **Layers** (design: `docs/DEV/README-design.md`): besides the repo graph, `graphs/*.json` next to the workspace file hold org/product/process layers (`schema.py` validates; ids are `<layer>:<path>`, nodes carry a `uid` used only for rename hints). `refs.merge_layers` runs at the end of `build_workspace`: it adds `process:<domain>` nodes from the packs, resolves cross-layer edges (including `/**` sub-graph endpoints) and tags every node with `layer`. JSON is canonical and what the loader reads; YAML is for review. `convert.py` moves between them, saving YAML comments in the database (`workgraph.sqlite3`) (`store.py`) anchored by item id so they are restored on JSON -> YAML.
 
-**Home folder** (`paths.py`): all data lives under `$WORKGRAPH_HOME` (default `~/workgraph`): `workspace.yaml`, `graphs/` (layer files), `workgraph.sqlite3` (the database; top of the home folder, never inside `graphs/` or `sync/`), `sync/` (git tree for `syncing.py`), `out/graph.json`, `cache/` (LLM results and graphify's AST cache, passed as `cache_root` so nothing is written into projects or the cwd), `src/` (URL clones). Workspace resolution: `--src` > `-c` > `./workspace.yaml` > `<home>/workspace.yaml`. Tests redirect the home via an autouse fixture in `tests/conftest.py`.
+**Home folder** (`paths.py`): all data lives under `$WORKGRAPH_HOME` (default `~/workgraph`): `workspace.yaml`, `custom/` (everything the user authors: `custom/graphs/` layer files, with a README; old `<home>/graphs/` is moved there by `init_home`), `workgraph.sqlite3` (the database; top of the home folder, never inside `graphs/` or `sync/`), `sync/` (git tree for `syncing.py`), `out/graph.json`, `cache/` (LLM results and graphify's AST cache, passed as `cache_root` so nothing is written into projects or the cwd), `src/` (URL clones). Workspace resolution: `--src` > `-c` > `./workspace.yaml` > `<home>/workspace.yaml`. Tests redirect the home via an autouse fixture in `tests/conftest.py`.
 
 **Claude Code integration** (`claude_code.py`, `tracking.py`): `workgraph hook session-start|session-end` are Claude Code hook handlers (JSON on stdin). Start tracks the project, logs the session and prints a graph summary that becomes session context; end records changed files and rebuilds in the background. Handlers must never raise or block. `claude-setup --write` merges them into `~/.claude/settings.json`; do not run that without the user asking.
 
-**Search and UI** (`query.py`, `ui/app.py`): `query.py` is UI-free (load graph.json, `build_docs`, `keyword_search`, `semantic_search` with ollama / sbert / TF-IDF backends and an embedding cache in `<home>/cache/embeddings`, `neighbors`, `to_dot`, `gaps_for`). The Streamlit app only calls it, and works with both old and new Streamlit (`WIDE` helper). `ui/` tests use `streamlit.testing.v1.AppTest` and need a working numpy/pyarrow, so run them in a clean env.
+**Search and UI** (`query.py`, `ui/streamlit/app.py`): `query.py` is UI-free (load graph.json, `build_docs`, `keyword_search`, `semantic_search` with ollama / sbert / TF-IDF backends and an embedding cache in `<home>/cache/embeddings`, `neighbors`, `to_dot`, `gaps_for`). The Streamlit app only calls it, and works with both old and new Streamlit (`WIDE` helper). `ui/` tests use `streamlit.testing.v1.AppTest` and need a working numpy/pyarrow, so run them in a clean env.
 
 **Plugin** (`plugin/`; deliberately NOT published: no `.claude-plugin/marketplace.json` in the repo, the draft is `docs/DEV/marketplace.draft.json`; do not add one or advertise `/plugin marketplace add` until the owner says so): hooks plus `commands/workgraph.md`, which must stay identical to `src/workgraph/data/workgraph-command.md` (a test checks). Plugin commands are namespaced (`/workgraph:workgraph`); `claude-setup --write` installs the plain `/workgraph` as a user command. Validate with `claude plugin validate plugin`. Background rebuilds always pass `-c <home>/workspace.yaml`, never the cwd's.
+
+**Progress** (`progress.py`): `build_workspace(..., progress=Progress())` prints per-project and per-phase progress to stderr and collects timings; the default is a no-op `NullProgress`, so library use and tests are silent. `processors.walk_project` must keep passing graphify's `_cache` to `_is_ignored` (without it a scan of a mid-size project takes 30 s instead of 6).
 
 Further docs: `docs/GUIDE/SETUP.md` (install, backends, troubleshooting) and `docs/GUIDE/USER-GUIDE.md` (workspace files, linking conventions, customizing packs).

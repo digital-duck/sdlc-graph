@@ -280,7 +280,7 @@ def _safe_extract(archive: Path, dest: Path) -> Path:
                 raise SyncError(f"unsafe entry in archive: {m.name}")
             total += m.size
         if total > MAX_ARCHIVE:
-            raise SyncError("archive is too large to be a workgraph export")
+            raise SyncError("archive is too large to be a workgraph dump")
         for m in members:
             target = (dest / m.name).resolve()
             if dest.resolve() not in target.parents and target != dest.resolve():
@@ -288,7 +288,7 @@ def _safe_extract(archive: Path, dest: Path) -> Path:
         tar.extractall(dest, members=members)
     top = [p for p in dest.iterdir()]
     if len(top) != 1 or not (top[0] / "manifest.json").exists():
-        raise SyncError("not a workgraph export (expected one folder with manifest.json)")
+        raise SyncError("not a workgraph dump (expected one folder with manifest.json)")
     return top[0]
 
 

@@ -24,7 +24,7 @@ def sha256(path: Path) -> str | None:
 
 
 def file_key(base: Path) -> str:
-    """How a graph file is named in the store: its bare name for files in the home `graphs/` folder (so the key is the
+    """How a graph file is named in the store: its bare name for files in the home `custom/graphs/` folder (so the key is the
     same on every machine), else the full path without extension (a workspace's own graphs folder, e.g. examples/)."""
     base = base.with_suffix("") if base.suffix else base
     if base.parent.resolve() == paths.graphs_dir().resolve():

@@ -25,7 +25,7 @@ cp -r examples /tmp/tutorial && cd /tmp/tutorial
 ## 1. The SDLC is a process template
 
 ```bash
-workgraph domains
+workgraph utils domains
 ```
 
 ```
@@ -88,6 +88,7 @@ The warning is a **broken reference**: `ADR-002.md` says it satisfies `REQ-099`,
 ## 3. Find the gaps and close them
 
 ```bash
+cd examples
 workgraph gaps -c acme-shop/workspace.yaml
 ```
 
@@ -177,7 +178,7 @@ Two processes are linked here. `process:sdlc` was not written by hand: every dom
 Check that every reference resolves:
 
 ```bash
-workgraph check -c workspace.yaml
+workgraph utils check -c workspace.yaml
 ```
 
 ```
@@ -211,7 +212,7 @@ cd graphs
 # open product.yaml and add a comment line above the Shop node, for example:
 #   # flagship product, reviewed 2026-10 by Dana
 #   - id: product:acme/retail/shop
-workgraph convert product.yaml       # YAML -> JSON; the comment is saved in the database, $WORKGRAPH_HOME/workgraph.sqlite3
+workgraph utils convert product.yaml       # YAML -> JSON; the comment is saved in the database, $WORKGRAPH_HOME/workgraph.sqlite3
 ```
 
 ```
@@ -222,7 +223,7 @@ JSON has no comments, so they are kept in a small SQLite store, anchored to the 
 
 ```bash
 rm product.yaml
-workgraph convert product.json       # JSON -> YAML; comments are restored from the store
+workgraph utils convert product.json       # JSON -> YAML; comments are restored from the store
 sed -n 8,12p product.yaml
 ```
 
@@ -272,7 +273,11 @@ workgraph build --src ~/projects/digital-duck/conceptbook-app
 ```
 
 ```
+Building 1 project ...
+[1/1] conceptbook-app ...
+  AST extraction: 100/113 uncached files (88%) [8 workers]
   AST extraction: 113/113 uncached files (100%) [8 workers]
+[1/1] conceptbook-app  1,263 nodes  8.4s   (scan files 6.0s, code (tree-sitter) 2.2s)
 1337 nodes, 5746 edges, 91 communities
 [sdlc]
   requirement  {'conceptbook-app': 3}
@@ -283,9 +288,14 @@ workgraph build --src ~/projects/digital-duck/conceptbook-app
   operate      {}
 layers: process 7, repo 1330
 wrote /tmp/tutorial-home/out/graph.json
+timing: 8.8s total
+  scan files                     6.0s
+  code (tree-sitter)             2.2s
+  clustering                     0.2s
+  assemble graph                 0.1s
 ```
 
-That took about 40 seconds on the first run and used no LLM. The path rules in the `sdlc` pack sorted the files into stages (documents under `docs/adr` become design, `tests/` become test, and so on), tree-sitter extracted the code, and the project's `.gitignore` kept `node_modules` and similar out. The same works for a URL, which is shallow-cloned into `$WORKGRAPH_HOME/src` first:
+The first part (the `Building ...` and `[1/1]` lines) is progress, printed on stderr while the build runs; the table at the end says where the time went. With several projects you get one `[i/N]` line per project. The build took under 10 seconds and used no LLM. The path rules in the `sdlc` pack sorted the files into stages (documents under `docs/adr` become design, `tests/` become test, and so on), tree-sitter extracted the code, and the project's `.gitignore` kept `node_modules` and similar out. The same works for a URL, which is shallow-cloned into `$WORKGRAPH_HOME/src` first:
 
 ```bash
 workgraph gaps --src https://github.com/digital-duck/work-graph
@@ -312,7 +322,7 @@ Real projects rarely annotate requirements, so the only rule that fires is the c
 The planning documents (`DESIGN.md`, `docs/README-roadmap.md`, `docs/README-todo.md`, a `readme-plan.md`) hold the project's real requirements, decisions and open tasks in prose. The `cc_cli` adapter reads them through the Claude Code CLI **on your subscription**: it removes `ANTHROPIC_API_KEY` and similar variables from the environment of the call, so it never bills the API. Check it first:
 
 ```bash
-workgraph llm --src ~/projects/digital-duck/conceptbook-app --adapter cc_cli
+workgraph utils show-llm --src ~/projects/digital-duck/conceptbook-app --adapter cc_cli
 ```
 
 ```
@@ -399,7 +409,7 @@ workgraph search "customers paying for an order" --semantic
    ...
 ```
 
-The first line says how the ranking was made. Embeddings come from a local Ollama model (`ollama pull nomic-embed-text`) or from sentence-transformers (`pip install 'workgraph[semantic]'`). With neither, workgraph falls back to TF-IDF and tells you the ranking is lexical, not meaning. The scores are similarities, so even weak matches appear; read the top few, not the whole list. Vectors are cached in `$WORKGRAPH_HOME/cache/embeddings`, so only the first search pays for indexing.
+The first line says how the ranking was made. Embeddings come from a local Ollama model (`ollama pull nomic-embed-text`) or from sentence-transformers (installed with workgraph; it runs on the CPU and downloads a small model once). With neither, workgraph falls back to TF-IDF and tells you the ranking is lexical, not meaning. The scores are similarities, so even weak matches appear; read the top few, not the whole list. Vectors are cached in `$WORKGRAPH_HOME/cache/embeddings`, so only the first search pays for indexing.
 
 Look at one node and its links:
 
@@ -424,8 +434,7 @@ acme-shop:doc_req_002
 The same things are available in a browser, for reviewing rather than scripting:
 
 ```bash
-python -m pip install 'workgraph[ui]'     # once, in a clean environment (see SETUP.md)
-workgraph ui
+workgraph ui                               # Streamlit is installed with workgraph; use a clean environment (see SETUP.md)
 ```
 
 The app opens at `http://localhost:8501` with four tabs: **Overview** (counts per layer, project and kind), **Search** (keyword or semantic, with the backend choice and a note on which one answered), **Browse** (every node, filterable by name) and **Gaps** (each rule's findings). The sidebar filters by layer, project, kind and stage across all tabs. Click any row and a panel opens below with the node's attributes, its links in and out, and a small diagram of its neighbourhood. After running `workgraph build` again, press *Reload*.
@@ -434,7 +443,7 @@ The app opens at `http://localhost:8501` with four tabs: **Overview** (counts pe
 
 You don't have to run `build` by hand for every project. Two Claude Code hooks make workgraph the memory of your sessions:
 
-The supported route today is `workgraph claude-setup --write`, which installs the two hooks and the plain command `/workgraph`: it merges the hooks into `~/.claude/settings.json` (keeping a `.bak` copy) and adds `~/.claude/commands/workgraph.md`. `workgraph claude-setup` without `--write` just prints what it would do.
+The supported route today is `workgraph utils claude-setup --write`, which installs the two hooks and the plain command `/workgraph`: it merges the hooks into `~/.claude/settings.json` (keeping a `.bak` copy) and adds `~/.claude/commands/workgraph.md`. `workgraph utils claude-setup` without `--write` just prints what it would do.
 
 The same hooks and command also exist as a Claude Code plugin in `plugin/` (the command is then `/workgraph:workgraph`, because Claude Code puts the plugin name in front of plugin commands). The plugin is not published to a marketplace yet while it is tested; from a clone you can try it with `claude --plugin-dir <path>/plugin`. Use one route or the other, not both.
 
@@ -486,8 +495,8 @@ dry run: nothing changed. `--apply` would track 42 folders and import session me
 **A second machine.** The built graph can always be rebuilt from your projects. What cannot be rebuilt is what you wrote into the graph, so that is all that travels, as text, and never the database:
 
 ```bash
-workgraph export -o workgraph.tar.gz       # on machine A; carry it on a USB stick
-workgraph import workgraph.tar.gz          # on machine B
+workgraph dump -o workgraph.tar.gz       # on machine A; carry it on a USB stick
+workgraph load workgraph.tar.gz          # on machine B
 
 workgraph sync init git@github.com:you/my-workgraph.git    # both machines; the repository must be PRIVATE
 workgraph sync push                        # after you change something

@@ -52,10 +52,22 @@ workgraph is a regular Python package. Install it from the clone (an editable in
 ```bash
 cd ~/projects/digital-duck/work-graph
 python -m pip install -e ".[dev]"
-workgraph doctor
+workgraph utils doctor
 ```
 
-`workgraph doctor` prints the Python path, the environment, the graphify version and the default backend, and warns with `[!!]` if it is running in conda base. The environment line should read `.../envs/graf`.
+`workgraph utils doctor` prints the Python path, the environment, the graphify version and the default backend, and warns with `[!!]` if it is running in conda base. The environment line should read `.../envs/graf`.
+
+```output
+(graf) papagame@papa-game:~/projects/digital-duck/work-graph (main)$ workgraph utils doctor
+[ok] python               3.11.17 at /home/papagame/anaconda3/envs/graf/bin/python3.11
+[ok] environment          /home/papagame/anaconda3/envs/graf
+[ok] graphify             0.9.92 (PyPI release)
+[ok] workgraph            0.1.0
+[ok] clustering           Louvain fallback (install the `leiden` extra for Leiden)
+[ok] default LLM backend  cc_cli
+
+```
+
 
 The extras (combine as needed, for example `".[dev,bedrock]"`):
 
@@ -65,15 +77,22 @@ The extras (combine as needed, for example `".[dev,bedrock]"`):
 | `bedrock` | boto3 | only for the AWS Bedrock backend (work) |
 | `leiden` | graspologic (Leiden community detection) | optional; see below |
 | `mcp` | mcp | only if you later serve the graph over MCP |
-| `ui` | streamlit | the `workgraph ui` app. Use a clean environment: a conda *base* with a NumPy 2 and a pyarrow built for NumPy 1 fails with `_ARRAY_API not found` when Streamlit draws tables |
-| `semantic` | sentence-transformers | embeddings for `workgraph search --semantic` without Ollama (with Ollama: `ollama pull nomic-embed-text` instead) |
+
+**Included by default.** SQL parsing (graphify's `sql` extra, `tree-sitter-sql`), so `.sql` files contribute to the graph; other optional grammars (Terraform, OCaml, R, ...) are graphify extras you can add with `python -m pip install 'graphifyy[terraform]'` and so on when a build warns about one. The Streamlit app (`workgraph ui`) and sentence-transformers (for `workgraph search --semantic`) are ordinary dependencies, so a plain install has both. `pip install 'workgraph[ui]'` and `'workgraph[semantic]'` still work and do nothing extra. Two things to know: sentence-transformers brings in PyTorch, so the first install is several GB and takes a while; and Streamlit needs a clean environment, because a conda *base* with a NumPy 2 and a pyarrow built for NumPy 1 fails with `_ARRAY_API not found` when it draws tables. Embedding runs on the CPU by default, since the PyTorch build pip picks may lack kernels for an older GPU (a GTX 1080 Ti fails with `no kernel image is available`); `WORKGRAPH_EMBED_DEVICE=cuda` opts in to a GPU.
 
 **About `leiden`.** Without it, community detection uses Louvain (built into NetworkX), which works fine. Leiden is slightly better, but graspologic is heavy: it brings scipy, numba, statsmodels, seaborn, gensim and pins `beartype<0.19`, which conflicts with other packages (for example `fastmcp`). Only add it in a dedicated env like `graf`, never in a shared one. It is not available on Python 3.13+.
 
 ## 4. Verify
 
 ```bash
-workgraph domains
+which workgraph
+workgraph utils domains
+
+# alias
+ln -s $HOME/anaconda3/envs/graf/bin/workgraph ./wg
+which wg
+
+wg utils domains
 ```
 
 Expected:
@@ -88,6 +107,7 @@ Then the tests and a first build on the bundled examples:
 
 ```bash
 python -m pytest
+# pytest
 workgraph build -c examples/workspace.yaml
 ```
 
@@ -100,13 +120,16 @@ The tests should all pass. The build prints node and edge counts, a per-stage ta
 **Log in once** (skip if `claude auth status` already shows `"loggedIn": true`):
 
 ```bash
+# sanity test
+claude -p --model claude-sonnet-5-5 hi
+
 claude          # follow the login prompt, choose your claude.ai account
 ```
 
 **Check readiness** (offline, makes no model call):
 
 ```bash
-workgraph llm -c examples/acme-shop/workspace.yaml --adapter cc_cli
+workgraph utils show-llm -c examples/acme-shop/workspace.yaml --adapter cc_cli
 ```
 
 Expected:
@@ -124,13 +147,13 @@ If the login line says `not a subscription login`, run `claude` and use `/login`
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `WORKGRAPH_CC_MODEL` | `claude-sonnet-5` | model passed to `claude --model`. workgraph does not read `ANTHROPIC_MODEL` |
+| `WORKGRAPH_CC_MODEL` | `claude-sonnet-5-5` | model passed to `claude --model`. workgraph does not read `ANTHROPIC_MODEL` |
 | `WORKGRAPH_CC_TIMEOUT` | `1200` | seconds before a call is abandoned |
 | `WORKGRAPH_BACKEND` | (unset) | force a backend for all commands, same as `--adapter` |
 
-**Do not confuse `cc_cli` with `claude-cli`.** `claude-cli` is graphify's built-in backend and passes your whole environment through, so if `ANTHROPIC_API_KEY` is set it bills the API per token. `workgraph llm` flags that case. Use `cc_cli`.
+**Do not confuse `cc_cli` with `claude-cli`.** `claude-cli` is graphify's built-in backend and passes your whole environment through, so if `ANTHROPIC_API_KEY` is set it bills the API per token. `workgraph utils show-llm` flags that case. Use `cc_cli`.
 
-## 6. LLM backend: `bedrock` (work, AWS)
+## 6. LLM backend: `bedrock` (AWS)
 
 ```bash
 python -m pip install -e ".[bedrock]"
@@ -146,7 +169,7 @@ Set `GRAPHIFY_BEDROCK_MODEL` explicitly. Graphify's built-in default is an old m
 Verify:
 
 ```bash
-workgraph llm -c workspace.yaml
+workgraph utils show-llm -c workspace.yaml
 ```
 
 Every line should show `[ok]`. The region and model lines show `[!!]` when you rely on defaults; that is informational. Document text is sent to Bedrock in your own AWS account.
@@ -160,8 +183,8 @@ Everything lives in one **home folder**, `~/workgraph` by default. Set `WORKGRAP
 | Path (under the home folder) | Content |
 |---|---|
 | `workspace.yaml` | the default workspace: the projects workgraph tracks (`workgraph track <path>`) |
-| `graphs/` | layer files (org, product, process; JSON and YAML) |
-| `workgraph.sqlite3` | the database: YAML comments, uid history, Claude Code session journal. It sits at the top of the home folder, outside `graphs/` and `sync/`, so it can never be committed or shared by accident. Do not put the home folder in Google Drive, iCloud or Dropbox |
+| `custom/` | everything you author yourself, with a README explaining it. `custom/graphs/` holds your layer files (org, product, process; JSON and YAML). A `graphs/` folder from an earlier version is moved here automatically |
+| `workgraph.sqlite3` | the database: YAML comments, uid history, Claude Code session journal. It sits at the top of the home folder, outside `custom/` and `sync/`, so it can never be committed or shared by accident. Do not put the home folder in Google Drive, iCloud or Dropbox |
 | `sync/` | the git working tree for `workgraph sync` (text only), created by `sync init` |
 | `out/graph.json` | the built graph |
 | `cache/` | cached LLM results (keyed by backend and prompt) and graphify's AST cache |
@@ -181,8 +204,8 @@ claude --plugin-dir <path to this repo>/plugin
 
 ```bash
 # B. plain settings (hooks + /workgraph): merges into ~/.claude/settings.json, keeping a .bak copy
-workgraph claude-setup            # first look at what it would add
-workgraph claude-setup --write
+workgraph utils claude-setup            # first look at what it would add
+workgraph utils claude-setup --write
 ```
 
 Then, once, bring in the work Claude Code has already done (a dry run first):

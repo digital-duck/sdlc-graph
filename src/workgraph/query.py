@@ -258,8 +258,9 @@ def semantic_search(docs: list[Doc], query: str, limit: int = 25, backend: str =
         else:
             from sentence_transformers import SentenceTransformer
             model = detail
-            st = SentenceTransformer(model)
-            embed = lambda batch: st.encode(batch).tolist()  # noqa: E731
+            # CPU by default: the model is small, and a PyTorch build without kernels for an older GPU would fail.
+            st = SentenceTransformer(model, device=os.environ.get("WORKGRAPH_EMBED_DEVICE", "cpu"))
+            embed = lambda batch: st.encode(batch, show_progress_bar=False).tolist()  # noqa: E731
         vecs = _embed_cached(texts, b, model, embed)
         qv = embed([query])[0]
         scores = [_cosine(qv, v) for v in vecs]

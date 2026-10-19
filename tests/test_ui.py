@@ -14,7 +14,7 @@ from streamlit.testing.v1 import AppTest
 from workgraph import paths, query
 from workgraph.cli import main
 
-APP = Path(__file__).parent.parent / "src" / "workgraph" / "ui" / "app.py"
+APP = Path(__file__).parent.parent / "src" / "workgraph" / "ui" / "streamlit" / "app.py"
 EX = Path(__file__).parent.parent / "examples"
 
 

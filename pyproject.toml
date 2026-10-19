@@ -24,9 +24,11 @@ classifiers = [
 requires-python = ">=3.10"
 dependencies = [
     "ruamel.yaml",
-    "graphifyy>=0.7.19",
+    "graphifyy[sql]>=0.7.19",   # [sql]: tree-sitter grammar for .sql files
     "networkx",
     "pyyaml",
+    "streamlit",                # workgraph ui
+    "sentence-transformers",    # workgraph search --semantic (pulls in PyTorch)
 ]
 
 [project.urls]
@@ -37,8 +39,8 @@ Issues = "https://github.com/digital-duck/work-graph/issues"
 
 [project.optional-dependencies]
 mcp = ["mcp"]
-ui = ["streamlit"]
-semantic = ["sentence-transformers"]
+ui = []          # kept so `pip install workgraph[ui]` still works: streamlit is a default dependency now
+semantic = []    # same: sentence-transformers is a default dependency now
 bedrock = ["boto3"]
 leiden = ["graspologic; python_version < '3.13'"]
 dev = ["pytest"]

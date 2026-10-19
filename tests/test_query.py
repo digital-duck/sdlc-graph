@@ -99,5 +99,5 @@ def test_cli_status_search_show_context(tmp_path, capsys):
         main(["show", "no-such-node"])
     main(["track", str(EX / "acme-shop")])
     capsys.readouterr()
-    main(["context", str(EX / "acme-shop")])
+    main(["utils", "context", str(EX / "acme-shop")])
     assert "memory for project acme-shop" in capsys.readouterr().out

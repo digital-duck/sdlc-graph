@@ -54,12 +54,12 @@ def stale_notes(graphs_dir: Path, store: Store | None = None) -> list[str]:
         j = y.with_suffix(".json")
         reg = store.registered(file_key(y)) if store else None
         if not j.exists():
-            notes.append(f"{y.name}: no {j.name}; run `workgraph convert {y.name}`")
+            notes.append(f"{y.name}: no {j.name}; run `workgraph utils convert {y.name}`")
         elif reg:
             if sha256(y) != reg[1]:
-                notes.append(f"{y.name}: edited since the last convert; run `workgraph convert {y.name}`")
+                notes.append(f"{y.name}: edited since the last convert; run `workgraph utils convert {y.name}`")
         elif y.stat().st_mtime > j.stat().st_mtime and not _same_content(y, j):
-            notes.append(f"{y.name}: newer than {j.name}; run `workgraph convert {y.name}`")
+            notes.append(f"{y.name}: newer than {j.name}; run `workgraph utils convert {y.name}`")
     return notes
 
 

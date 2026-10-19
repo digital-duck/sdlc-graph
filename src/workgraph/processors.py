@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import re
+import time
 import warnings
 from pathlib import Path
 from typing import Callable
@@ -16,6 +17,7 @@ from graphify.detect import _is_ignored, _is_noise_dir, _load_graphifyignore, _p
 from graphify.extract import collect_files, extract
 
 from . import paths
+from .progress import current
 from .domain import Processor, Project, glob_match, make_id
 from .cc_cli import BackendLimitError
 from .claude_import import p_claude_memory
@@ -43,12 +45,13 @@ def _ignore_patterns(project: Project) -> list[tuple[Path, str]]:
 
 def walk_project(project: Project) -> list[Path]:
     pats, root, out = _ignore_patterns(project), project.path, []
+    cache: dict = {}     # graphify memoises each folder's verdict here; without it every file re-checks all its parents
     for dp, dns, fns in os.walk(root):
         dns[:] = [d for d in dns if not d.startswith(".") and not _is_noise_dir(d) and d != "graphify-out"
-                  and not _is_ignored(Path(dp) / d, root, pats)]
+                  and not _is_ignored(Path(dp) / d, root, pats, _cache=cache)]
         for f in fns:
             fp = Path(dp) / f
-            if not f.startswith(".") and _inside(root, fp) and not _is_ignored(fp, root, pats):
+            if not f.startswith(".") and _inside(root, fp) and not _is_ignored(fp, root, pats, _cache=cache):
                 out.append(fp)
     return sorted(out)
 
@@ -222,7 +225,7 @@ def p_llm_items(project: Project, files: list[Path], proc: Processor) -> dict:
     backend = resolve_backend(None, project.backend, proc.backend)
     kinds = proc.kinds or ["requirement", "decision", "task"]
     flow = "; ".join(f"{s.id}->{','.join(s.next)}" for s in d.stages.values())
-    for f in files:
+    for n, f in enumerate(files, 1):
         rel = _rel(project, f)
         text = f.read_text(encoding="utf-8", errors="replace")[:_MAX_DOC_CHARS]
         prompt = _ITEMS_PROMPT.format(domain=d.name, kinds=", ".join(kinds), stages=", ".join(d.stages), flow=flow,
@@ -231,6 +234,7 @@ def p_llm_items(project: Project, files: list[Path], proc: Processor) -> dict:
         if cache.exists():
             items = json.loads(cache.read_text(encoding="utf-8"))
         else:
+            current().note(f"LLM {n}/{len(files)}: {rel}")
             try:
                 items = _json_object(complete(prompt, backend=backend, max_tokens=4096)).get("items", [])
             except BackendLimitError as e:
@@ -259,9 +263,17 @@ REGISTRY: dict[str, Callable[[Project, list[Path], Processor], dict]] = {
 }
 
 
-def run_processors(project: Project, *, semantic: bool = False) -> dict:
-    """Run every processor of the project's domain and merge the results."""
+STEP_LABELS = {"ast": "code (tree-sitter)", "frontmatter": "documents", "annotations": "annotations",
+               "llm": "LLM extraction", "llm_items": "LLM extraction", "claude_memory": "Claude Code memory"}
+
+
+def run_processors(project: Project, *, semantic: bool = False, steps: list | None = None) -> dict:
+    """Run every processor of the project's domain and merge the results. `steps` collects
+    (label, seconds, files) per step, for progress and timing."""
+    t = time.perf_counter()
     all_files = walk_project(project)
+    if steps is not None:
+        steps.append(("scan files", time.perf_counter() - t, len(all_files)))
     merged = _empty()
     for proc in project.domain.processors:
         if proc.use in ("llm", "llm_items") and not semantic:
@@ -269,7 +281,12 @@ def run_processors(project: Project, *, semantic: bool = False) -> dict:
         if proc.use not in REGISTRY:
             raise ValueError(f"[{project.domain.name}] processor {proc.name!r} uses unknown processor {proc.use!r}")
         files = [f for f in all_files if not proc.match or glob_match(_rel(project, f), proc.match)]
+        if proc.use in ("llm", "llm_items") and files:
+            current().note(f"LLM extraction: {len(files)} document{'s' if len(files) != 1 else ''}, one call each (cached ones are instant) ...")
+        t = time.perf_counter()
         part = REGISTRY[proc.use](project, files, proc)
+        if steps is not None:
+            steps.append((STEP_LABELS.get(proc.use, proc.use), time.perf_counter() - t, len(files)))
         for k in ("nodes", "edges", "hyperedges", "refs", "warnings"):
             merged[k].extend(part.get(k, []))
     return merged

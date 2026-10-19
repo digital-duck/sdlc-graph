@@ -8,7 +8,7 @@ You are using **workgraph**, a knowledge graph of this user's projects, their li
 
 What the graph knows about the current project right now:
 
-!`workgraph context .`
+!`workgraph utils context .`
 
 The user ran `/workgraph` with: `$ARGUMENTS`
 

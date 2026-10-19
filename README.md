@@ -47,13 +47,13 @@ This is the same graph-first approach as ConceptBook (a book as a graph) and Gra
 
 ### Memory for Claude Code
 
-Two Claude Code hooks (installed by the `workgraph` plugin or `workgraph claude-setup`) make the graph the memory of your sessions. When a session starts, the project is tracked automatically and a short summary of what the graph knows about it (stages, gaps, open items, product, owner, what earlier sessions changed) is added to the session context. When the session ends, what changed is recorded and the graph is rebuilt in the background. Work done through Claude Code then flows into the same graph as everything else, with no manual ingestion. The `/workgraph` slash command queries the graph from inside a session. Data lives in `~/workgraph` (override with `WORKGRAPH_HOME`), and any local folder or git URL can be ingested with `--src`. `workgraph import-claude` backfills the work Claude Code has already done (the projects it worked in, session metadata, and its memory files as searchable nodes).
+Two Claude Code hooks (installed by the `workgraph` plugin or `workgraph utils claude-setup`) make the graph the memory of your sessions. When a session starts, the project is tracked automatically and a short summary of what the graph knows about it (stages, gaps, open items, product, owner, what earlier sessions changed) is added to the session context. When the session ends, what changed is recorded and the graph is rebuilt in the background. Work done through Claude Code then flows into the same graph as everything else, with no manual ingestion. The `/workgraph` slash command queries the graph from inside a session. Data lives in `~/workgraph` (override with `WORKGRAPH_HOME`), and any local folder or git URL can be ingested with `--src`. `workgraph import-claude` backfills the work Claude Code has already done (the projects it worked in, session metadata, and its memory files as searchable nodes).
 
 ### Several machines
 
-The database never leaves the machine. What cannot be rebuilt (layer files, YAML comments, the portable workspace) travels as text: `workgraph export` / `import` for a first setup by USB, then `workgraph sync push` / `pull` through a **private** GitHub repository. Exports and pushes are scanned and stop on databases, large files or anything shaped like a key; the org layer, session journal and LLM cache are opt-in. See the User Guide, "Moving to another machine".
+The database never leaves the machine. What cannot be rebuilt (layer files, YAML comments, the portable workspace) travels as text: `workgraph dump` / `load` for a first setup by USB, then `workgraph sync push` / `pull` through a **private** GitHub repository. Exports and pushes are scanned and stop on databases, large files or anything shaped like a key; the org layer, session journal and LLM cache are opt-in. See the User Guide, "Moving to another machine".
 
-`workgraph claude-setup --write` installs the hooks and the `/workgraph` command into your user-level Claude Code settings. The same pieces also exist as a Claude Code plugin in `plugin/`, which is **not published to a marketplace yet** while it is being tested; to try it from a clone, run `claude --plugin-dir <path>/plugin`. Use one route or the other, not both.
+`workgraph utils claude-setup --write` installs the hooks and the `/workgraph` command into your user-level Claude Code settings. The same pieces also exist as a Claude Code plugin in `plugin/`, which is **not published to a marketplace yet** while it is being tested; to try it from a clone, run `claude --plugin-dir <path>/plugin`. Use one route or the other, not both.
 
 ### Multiple graphs
 
@@ -126,7 +126,7 @@ Shipped packs (`src/workgraph/domains/`): **`sdlc`**, **`research`** (question â
 - **Derived**: a test file that imports a code file yields an `INFERRED` `verifies` edge, and the rule comes from the pack's `flow_relations` rather than from code.
 - **Gaps**: the pack's `expectations` ("every requirement needs a test") are evaluated as plain graph queries. Rules can skip trivial files (`min_symbols`, `exclude`), and broken references are reported too.
 - **LLM work items** (`--semantic`): the `llm_items` processor reads planning and design prose (roadmaps, todos, design notes) with the pack's own prompt and extracts requirements, decisions and tasks as `INFERRED` nodes (`origin: llm`, with `status: done|open`) tagged with the pack's stages. They link to their source document with `derived_from`, are cached by prompt hash, and don't trigger gap rules until confirmed.
-- **Cross-project links**: byte-identical files get `identical_to` and same-path files that differ get `variant_of`, so clones of a template across repos show up (`workgraph clones`).
+- **Cross-project links**: byte-identical files get `identical_to` and same-path files that differ get `variant_of`, so clones of a template across repos show up (`workgraph utils clones`).
 - **Ignore rules**: `.gitignore`, `.graphifyignore`, the pack's default `ignore:` (logs, locks, db files) and a per-project `ignore:` list in the workspace file.
 
 ### Retrieval: graph + semantic (planned)
@@ -197,15 +197,15 @@ Python 3.10+ (conda env), NetworkX, graphify (PyPI release), PyYAML. LLM backend
 ```bash
 conda create -n graf python=3.11 pip -y && conda activate graf   # dedicated env, see docs/GUIDE/SETUP.md
 python -m pip install -e ".[dev]"
-workgraph doctor                                      # confirm you are in graf, not conda base
+workgraph utils doctor                                      # confirm you are in graf, not conda base
 
-workgraph domains                                     # list domain packs
+workgraph utils domains                                     # list domain packs
 workgraph build -c examples/workspace.yaml            # build the graph, write ~/workgraph/out/graph.json
 workgraph gaps --src https://github.com/digital-duck/work-graph   # any local folder or git URL, no workspace file
 workgraph gaps  -c examples/workspace.yaml            # report gaps per domain rules
-workgraph clones -c examples/workspace.yaml           # files shared across projects
-workgraph check -c examples/workspace.yaml            # validate the org/product layer files and cross-graph references
-workgraph convert examples/graphs/product.json        # JSON <-> YAML, YAML comments kept in the store
+workgraph utils clones -c examples/workspace.yaml           # files shared across projects
+workgraph utils check -c examples/workspace.yaml            # validate the org/product layer files and cross-graph references
+workgraph utils convert examples/graphs/product.json        # JSON <-> YAML, YAML comments kept in the store
 workgraph open --semantic --adapter cc_cli -c examples/acme-shop/workspace.yaml   # open work items via the LLM pass
 python -m pytest
 ```
@@ -232,7 +232,7 @@ workgraph build --semantic -c workspace.yaml
 python -m pip install -e ".[bedrock]"
 export WORKGRAPH_BACKEND=bedrock AWS_PROFILE=<profile> AWS_REGION=<region>
 export GRAPHIFY_BEDROCK_MODEL=<model-or-inference-profile-id>   # graphify's built-in default is an old model
-workgraph llm -c workspace.yaml          # resolved backend, billing mode and readiness checks per processor
+workgraph utils show-llm -c workspace.yaml          # resolved backend, billing mode and readiness checks per processor
 workgraph build --semantic -c workspace.yaml
 ```
 
@@ -269,7 +269,7 @@ src/workgraph/
   claude_import.py # Claude Code memory processor and import-claude
   claude_code.py   # Claude Code hooks: workgraph as the memory of your sessions
   query.py         # load, keyword search, semantic search (ollama / sentence-transformers / TF-IDF), neighbourhoods
-  ui/app.py        # Streamlit app (`workgraph ui`)
+  ui/streamlit/    # Streamlit app (`workgraph ui`); one folder per UI framework under ui/
   data/            # packaged copy of the /workgraph command
 plugin/            # Claude Code plugin: hooks + the /workgraph command (not published; draft marketplace file in docs/DEV/)
 examples/graphs/   # org and product layer files (JSON canonical, YAML for review)

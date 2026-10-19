@@ -10,38 +10,59 @@ import networkx as nx
 
 from .analyze import find_gaps
 from . import paths
-from .domain import Domain, Workspace, available_domains
+from .domain import Domain, Workspace, available_domains, custom_domain_files
 from .sources import workspace_from_sources
 from .llm import BILLING, check_backend, resolve_backend
 from .pipeline import build_workspace, stage_summary
+from .progress import NullProgress, Progress
 from . import query
 from .refs import assign_uids, layer_summary, load_layers, merge_layers, missing_uids, stale_notes
 
 
 def _workspace(args) -> Workspace:
-    """--src paths/URLs, else -c FILE, else ./workspace.yaml, else the default workspace in the workgraph home."""
+    """--src paths/URLs, else -c FILE, else ./workspace.yaml, else the default workspace in the work-graph home.
+    A relative -c that is not in the current folder is also looked for in the home folder, so `-c workspace.yaml`
+    finds the default workspace from anywhere."""
     if getattr(args, "src", None):
         if args.config:
             raise ValueError("use either --src or -c, not both")
         return workspace_from_sources(args.src, args.domain)
-    cfg = Path(args.config) if args.config else (Path("workspace.yaml") if Path("workspace.yaml").exists()
-                                                  else paths.default_workspace())
+    if args.config:
+        cfg = Path(args.config)
+        if not cfg.exists() and not cfg.is_absolute() and (paths.home() / cfg).exists():
+            cfg = paths.home() / cfg
+        where = f"{args.config!r} (looked in the current folder and in {paths.home()})"
+    else:
+        cfg = Path("workspace.yaml") if Path("workspace.yaml").exists() else paths.default_workspace()
+        where = str(cfg)
     if not cfg.exists():
-        raise FileNotFoundError(f"no workspace file at {cfg}: pass -c FILE or --src PATH_OR_URL, "
-                                f"or run `workgraph init` and `workgraph track <path>`")
-    return Workspace.load(cfg)
+        raise FileNotFoundError(f"no workspace file {where}: pass -c FILE (the examples have one: examples/workspace.yaml) "
+                                f"or --src PATH_OR_URL, or run `workgraph init` and `workgraph track <path>`")
+    ws = Workspace.load(cfg)
+    if not ws.projects:
+        why = (f"its projects have no folder on this machine yet ({', '.join(ws.unresolved)}): "
+               f"`workgraph track <folder>` binds one, `workgraph sync pull --clone-missing` clones them") if ws.unresolved \
+            else "it lists no projects yet: `workgraph track <folder>` adds one, or use --src PATH_OR_URL"
+        raise ValueError(f"nothing to build in {cfg}: {why}")
+    return ws
 
 
-def _build(args):
+def _build(args, final: bool = True):
+    """Build the graph with progress on stderr. `final=False` leaves the closing timing to the caller (`build`)."""
     ws = _workspace(args)
-    M, communities, warnings = build_workspace(ws, semantic=args.semantic)
+    quiet = getattr(args, "quiet", False) or os.environ.get("WORKGRAPH_QUIET")
+    args.progress = NullProgress() if quiet else Progress()
+    M, communities, warnings = build_workspace(ws, semantic=args.semantic, progress=args.progress)
+    if final:
+        args.progress.finish_line()
     return ws, M, communities, warnings
 
 
 def cmd_domains(args) -> None:
     for name in available_domains():
         d = Domain.load(name)
-        print(f"{name:<11} {d.label}: " + " → ".join(d.stages))
+        mark = "  (custom)" if name in custom_domain_files() else ""
+        print(f"{name:<11} {d.label}: " + " → ".join(d.stages) + mark)
 
 
 def cmd_llm(args) -> None:
@@ -92,7 +113,9 @@ def cmd_doctor(args) -> None:
 
 
 def cmd_build(args) -> None:
-    ws, M, communities, warnings = _build(args)
+    from .tracking import init_home
+    init_home()      # a build writes into the home folder, so make sure all of it exists, database included
+    ws, M, communities, warnings = _build(args, final=False)
     print(f"{M.number_of_nodes()} nodes, {M.number_of_edges()} edges, {len(communities)} communities")
     for dom, stages in stage_summary(M).items():
         print(f"[{dom}]")
@@ -109,8 +132,11 @@ def cmd_build(args) -> None:
         print(f"warning: {w}")
     out = Path(args.out) if args.out else paths.out_dir()
     out.mkdir(parents=True, exist_ok=True)
-    (out / "graph.json").write_text(json.dumps(nx.node_link_data(M, edges="edges"), default=str), encoding="utf-8")
+    with args.progress.phase("writing graph.json", "write graph"):
+        (out / "graph.json").write_text(json.dumps(nx.node_link_data(M, edges="edges"), default=str), encoding="utf-8")
     print(f"wrote {out / 'graph.json'}")
+    if args.progress.enabled:
+        print(args.progress.table())          # where the time went
 
 
 def cmd_check(args) -> None:
@@ -159,7 +185,8 @@ def cmd_init(args) -> None:
     from .tracking import init_home
     h = init_home()
     print(f"workgraph home: {h}")
-    for name in ("workspace.yaml", "graphs/", "out/", "cache/", "src/ (created on first --src URL)"):
+    for name in ("workspace.yaml", "workgraph.sqlite3", "custom/ (your layer files go in custom/graphs/)", "out/", "cache/",
+                 "src/ (created on first --src URL)"):
         print(f"  {name}")
 
 
@@ -211,7 +238,7 @@ def _print_report(rep: dict) -> None:
             print(f"  {k}: {', '.join(v) if isinstance(v, list) else v}")
 
 
-def cmd_export(args) -> None:
+def cmd_dump(args) -> None:
     from . import syncing
     parts = syncing.parse_parts(args.with_parts)
     with _sync_store() as store:
@@ -221,7 +248,7 @@ def cmd_export(args) -> None:
     print("The archive holds your authored graph data as text, never the database. Treat it as private.")
 
 
-def cmd_import(args) -> None:
+def cmd_load(args) -> None:
     from . import syncing
     with _sync_store() as store:
         rep = syncing.import_archive(Path(args.file), store)
@@ -273,7 +300,7 @@ def cmd_claude_setup(args) -> None:
     from .claude_code import hook_settings, install_command, install_hooks
     if not args.write:
         print("Plain settings (hooks + the /workgraph command). Add this to ~/.claude/settings.json,\n"
-              "or run `workgraph claude-setup --write` to merge it and install the command.\n"
+              "or run `workgraph utils claude-setup --write` to merge it and install the command.\n"
               "(A plugin version exists in plugin/ but is not published yet; try it with `claude --plugin-dir <repo>/plugin`.\n"
               "Use the plugin or these settings, not both.)\n")
         print(json.dumps(hook_settings(), indent=2))
@@ -371,8 +398,8 @@ def cmd_ui(args) -> None:
     try:
         import streamlit  # noqa: F401
     except ImportError:
-        raise SystemExit("workgraph: the UI needs streamlit: python -m pip install 'workgraph[ui]'")
-    app = Path(__file__).parent / "ui" / "app.py"
+        raise SystemExit("workgraph: the UI needs streamlit: python -m pip install workgraph")
+    app = Path(__file__).parent / "ui" / args.framework / "app.py"
     cmd = [sys.executable, "-m", "streamlit", "run", str(app), "--server.port", str(args.port)]
     if args.no_browser:
         cmd += ["--server.headless", "true"]
@@ -418,14 +445,49 @@ def cmd_gaps(args) -> None:
     print(f"\n{len(gaps)} gaps, {len(warnings)} warnings")
 
 
+def _graphify_version() -> str:
+    import importlib.metadata as md
+    try:
+        return md.version("graphifyy")
+    except md.PackageNotFoundError:
+        return ""
+
+
+class _Help(argparse.HelpFormatter):
+    """Top-level help: list the commands with their descriptions, without the {a,b,c} line argparse adds."""
+
+    def __init__(self, prog):
+        super().__init__(prog, max_help_position=24, width=100)
+
+    def _fill_text(self, text, width, indent):          # keep paragraph breaks in the description
+        import textwrap
+        return "\n\n".join(textwrap.fill(p, width, initial_indent=indent, subsequent_indent=indent)
+                           for p in text.split("\n\n"))
+
+    def _format_action(self, action):
+        if isinstance(action, argparse._SubParsersAction):
+            return "".join(self._format_action(a) for a in action._get_subactions())
+        return super()._format_action(action)
+
+
 def main(argv: list[str] | None = None) -> None:
-    ap = argparse.ArgumentParser(prog="workgraph")
-    sub = ap.add_subparsers(dest="cmd", required=True)
-    s = sub.add_parser("check", help="validate layer files and cross-graph references")
+    ap = argparse.ArgumentParser(
+        prog="workgraph", formatter_class=_Help,
+        description="A knowledge layer beside Claude Code. workgraph turns your projects, their lifecycle, products, "
+                    "teams and processes into one searchable graph, and gives your Claude Code sessions a memory of it.\n\n"
+                    f"Built on graphify {_graphify_version()} (https://github.com/Graphify-Labs/graphify, PyPI: graphifyy), "
+                    "which supplies code and document extraction, clustering and graph export.",
+        epilog="Run `workgraph COMMAND -h` for the options of one command. Guides: docs/GUIDE in the repository.")
+    sub = ap.add_subparsers(dest="cmd", required=True, title="commands", metavar="COMMAND")
+    utils = sub.add_parser("utils", formatter_class=_Help,
+                           help="helper commands (check, claude-setup, clones, context, convert, doctor, domains, show-llm)",
+                           description="Helper commands: diagnostics, validation, conversion and setup.")
+    usub = utils.add_subparsers(dest="util", required=True, title="utils", metavar="SUBCOMMAND")
+    s = usub.add_parser("check", help="validate layer files and cross-graph references")
     s.add_argument("-c", "--config", help="workspace file (default: ./workspace.yaml, else <home>/workspace.yaml)")
     s.add_argument("--assign-uids", action="store_true", help="write a uid into layer nodes that lack one")
     s.set_defaults(fn=cmd_check)
-    s = sub.add_parser("convert", help="convert a layer file between JSON and YAML, keeping YAML comments")
+    s = usub.add_parser("convert", help="convert a layer file between JSON and YAML, keeping YAML comments")
     s.add_argument("file")
     s.add_argument("-o", "--out")
     s.add_argument("--db", help="comment store (default: <home>/workgraph.sqlite3)")
@@ -442,13 +504,13 @@ def main(argv: list[str] | None = None) -> None:
     s.add_argument("--include-nested", action="store_true", help="also track folders that sit inside another project")
     s.add_argument("--projects-dir", help="default: ~/.claude/projects")
     s.set_defaults(fn=cmd_import_claude)
-    s = sub.add_parser("export", help="pack your authored graph data into a tar.gz (for a USB stick), without the database")
+    s = sub.add_parser("dump", help="pack your authored graph data into a tar.gz (for a USB stick), without the database")
     s.add_argument("-o", "--out", required=True, help="e.g. workgraph.tar.gz")
     s.add_argument("--with", dest="with_parts", help="extra parts, comma separated: org, sessions, llm-cache")
-    s.set_defaults(fn=cmd_export)
-    s = sub.add_parser("import", help="merge a workgraph tar.gz into this machine")
+    s.set_defaults(fn=cmd_dump)
+    s = sub.add_parser("load", help="merge a workgraph tar.gz into this machine")
     s.add_argument("file")
-    s.set_defaults(fn=cmd_import)
+    s.set_defaults(fn=cmd_load)
     s = sub.add_parser("sync", help="share your workgraph between machines through a PRIVATE git repository")
     s.add_argument("action", choices=["init", "push", "pull", "status"])
     s.add_argument("url", nargs="?", help="init: URL of the private repository")
@@ -457,10 +519,10 @@ def main(argv: list[str] | None = None) -> None:
     s.add_argument("--clone-missing", action="store_true", help="pull: clone projects that have no folder here")
     s.add_argument("-m", "--message", help="push: commit message")
     s.set_defaults(fn=cmd_sync)
-    s = sub.add_parser("hook", help="Claude Code hook handler (reads the hook JSON on stdin)")
+    s = sub.add_parser("hook")   # no help: hidden from the list; Claude Code hooks call it, so the name must stay
     s.add_argument("event", choices=["session-start", "session-end"])
     s.set_defaults(fn=cmd_hook)
-    s = sub.add_parser("claude-setup", help="show, or with --write install, the Claude Code hooks that feed workgraph")
+    s = usub.add_parser("claude-setup", help="show, or with --write install, the Claude Code hooks that feed workgraph")
     s.add_argument("--write", action="store_true", help="merge the hooks into the user-level Claude Code settings")
     s.add_argument("--settings", default="~/.claude/settings.json")
     s.set_defaults(fn=cmd_claude_setup)
@@ -480,26 +542,27 @@ def main(argv: list[str] | None = None) -> None:
     s = sub.add_parser("status", help="summary of the last built graph")
     s.add_argument("--graph")
     s.set_defaults(fn=cmd_status)
-    s = sub.add_parser("context", help="what the graph knows about the project at PATH (default: current folder)")
+    s = usub.add_parser("context", help="what the graph knows about the project at PATH (default: current folder)")
     s.add_argument("path", nargs="?", default=".")
     s.set_defaults(fn=cmd_context)
-    s = sub.add_parser("ui", help="open the Streamlit app to review and search the graph")
+    s = sub.add_parser("ui", help="open the web app to review and search the graph")
+    s.add_argument("--framework", choices=["streamlit"], default="streamlit", help="UI framework (only streamlit so far)")
     s.add_argument("--graph", help="graph file (default: <home>/out/graph.json)")
     s.add_argument("--port", type=int, default=8501)
     s.add_argument("--no-browser", action="store_true")
     s.set_defaults(fn=cmd_ui)
-    sub.add_parser("domains", help="list domain packs").set_defaults(fn=cmd_domains)
-    sub.add_parser("doctor", help="show python/environment/graphify details and warn about conda base").set_defaults(fn=cmd_doctor)
-    s = sub.add_parser("llm", help="show the resolved LLM backend per processor and check readiness")
+    usub.add_parser("domains", help="list domain packs").set_defaults(fn=cmd_domains)
+    usub.add_parser("doctor", help="show python/environment/graphify details and warn about conda base").set_defaults(fn=cmd_doctor)
+    s = usub.add_parser("show-llm", help="show the resolved LLM backend per processor and check readiness")
     s.add_argument("-c", "--config", help="workspace file (default: ./workspace.yaml, else <home>/workspace.yaml)")
     s.add_argument("--adapter", help="LLM backend, e.g. cc_cli (subscription) or bedrock; overrides config")
     s.add_argument("--src", action="append", metavar="URL_OR_PATH", help="check a folder or git URL instead of a workspace file")
     s.add_argument("--domain", default="sdlc", help="domain pack for --src projects (default sdlc)")
     s.set_defaults(fn=cmd_llm)
-    for name, fn, h in (("build", cmd_build, "build the graph"), ("gaps", cmd_gaps, "report gaps per domain rules"),
-                         ("clones", cmd_clones, "files shared across projects"),
-                         ("open", cmd_open, "open work items from planning docs (use with --semantic)")):
-        s = sub.add_parser(name, help=h)
+    for group, name, fn, h in ((sub, "build", cmd_build, "build the graph"), (sub, "gaps", cmd_gaps, "report gaps per domain rules"),
+                               (usub, "clones", cmd_clones, "files shared across projects"),
+                               (sub, "open", cmd_open, "open work items from planning docs (use with --semantic)")):
+        s = group.add_parser(name, help=h)
         s.add_argument("-c", "--config", help="workspace file (default: ./workspace.yaml, else <home>/workspace.yaml)")
         s.add_argument("--adapter", help="LLM backend, e.g. cc_cli (subscription) or bedrock; overrides config")
         s.add_argument("--semantic", action="store_true", help="also run LLM processors (needs a backend/API key)")
@@ -507,7 +570,10 @@ def main(argv: list[str] | None = None) -> None:
                        help="build from a local folder or a git URL instead of a workspace file (repeatable)")
         s.add_argument("--domain", default="sdlc", help="domain pack for --src projects (default sdlc)")
         s.add_argument("-o", "--out", help="output folder (default: <home>/out)")
+        s.add_argument("-q", "--quiet", action="store_true", help="no progress or timing output")
         s.set_defaults(fn=fn)
+    for g in (sub, usub):
+        g._choices_actions.sort(key=lambda a: a.dest)    # list the commands alphabetically in --help
     args = ap.parse_args(argv)
     if getattr(args, "adapter", None):
         try:
