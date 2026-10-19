@@ -43,7 +43,7 @@ This is the same graph-first approach as ConceptBook (a book as a graph) and Gra
 
 ### Search and review
 
-`workgraph search "checkout test"` is a keyword search (names, paths, summaries and the first lines of each file, with phrase and prefix matching). `workgraph search "how are carts stored?" --semantic` ranks by meaning with embeddings from a local Ollama model (default `nomic-embed-text`) or sentence-transformers, and says plainly when it had to fall back to lexical TF-IDF. `workgraph show REQ-002` prints one node and its links. `workgraph ui` opens a Streamlit app to browse, filter, search, inspect gaps and see a node's neighbourhood.
+`workgraph search "checkout test"` is a keyword search (names, paths, summaries and the first lines of each file, with phrase and prefix matching). `workgraph search "how are carts stored?" --semantic` ranks by meaning with embeddings from a local Ollama model (default `nomic-embed-text`) or sentence-transformers, and says plainly when it had to fall back to lexical TF-IDF. `workgraph show REQ-002` prints one node and its links. `workgraph ui` opens a Streamlit app to browse, filter, search, inspect gaps, see a node's neighbourhood and draw the graph (Map tab). `workgraph viz` draws the graph as an interactive page (`--engine cytoscape|pyvis|graphify|graphviz`).
 
 ### Memory for Claude Code
 
@@ -283,6 +283,7 @@ examples/graphs/   # org and product layer files (JSON canonical, YAML for revie
 - [x] Gap analysis and broken-reference reporting
 - [x] Persist the graph (`graph.json`) and load it back for search, `show`, `status` and the UI
 - [ ] `ask` command: seed → expand → LLM answer with cited nodes
+- [x] `workgraph viz`: draw the graph with a choice of engines (see docs/DEV/README-vis.md)
 - [x] Streamlit app to review and query the graph (`workgraph ui`): overview, keyword and semantic search, browse, gaps, a node's links and neighbourhood
 - [ ] Interactive visualization of the whole graph
 - [x] Graph references: namespaced IDs, resolved in memory at load time, with broken-reference reporting across graphs

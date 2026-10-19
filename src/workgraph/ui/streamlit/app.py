@@ -9,7 +9,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from workgraph import paths, query
+from workgraph import paths, query, viz
 from workgraph.domain import Workspace
 
 st.set_page_config(page_title="Workgraph", page_icon="🕸️", layout="wide")
@@ -74,7 +74,38 @@ def node_panel(M, node: str) -> None:
         st.graphviz_chart(query.to_dot(M, node), **WIDE)
 
 
+def map_tab(M, layer, project, kind, stage, chosen=None) -> None:
+    """The graph as a picture: the sidebar filters plus a few controls, drawn with the bundled Cytoscape.js page."""
+    c = st.columns([2, 1, 1, 1, 1])
+    centre = chosen if chosen in M else st.session_state.get("node")     # this run's pick, not last run's
+    around = c[0].checkbox(f"Only around the selected node ({M.nodes[centre].get('label', centre)})" if centre in M
+                           else "Only around the selected node (select one in Search, Browse or Gaps first)",
+                           disabled=centre not in M, key="map_around")
+    hops = c[1].number_input("Hops", 1, 5, 2, disabled=not around)
+    cap = c[2].number_input("Max nodes", 20, 2000, viz.DEFAULT_MAX_NODES, step=50)
+    code = c[3].checkbox("Symbols and code", help="Include symbol, external and rationale nodes (many)")
+    hubs = c[4].checkbox("Stage/project links", help="Keep the in_stage and belongs_to edges to the hub nodes")
+    sub, note = viz.select(M, layer=layer, project=project, kind=kind, stage=stage, node=centre if around else None,
+                           hops=int(hops), include_code=code, hubs=hubs, max_nodes=int(cap))
+    if not sub.number_of_nodes():
+        st.info("Nothing to draw with these filters.")
+        return
+    st.caption(f"{sub.number_of_nodes()} nodes, {sub.number_of_edges()} edges. " + note
+               + " Other engines: `workgraph viz --engine pyvis|graphify|graphviz`.")
+    page = viz.cytoscape_html(sub, note)
+    if hasattr(st, "iframe"):                    # newer Streamlit: components.html is deprecated
+        st.iframe(page, height=700)
+    else:
+        import streamlit.components.v1 as components
+        components.html(page, height=700, scrolling=False)
+
+
+# Streamlit sizes most text in rem, so raising the root size scales the whole app (default is 16px).
+FONT_CSS = "<style>html { font-size: 19px; } [data-testid='stDataFrame'] { font-size: 1rem; }</style>"
+
+
 def main() -> None:
+    st.markdown(FONT_CSS, unsafe_allow_html=True)
     st.title("Workgraph")
     graph = st.sidebar.text_input("Graph file", _cli_graph() or str(paths.out_dir() / "graph.json"))
     if st.sidebar.button("Reload"):
@@ -96,7 +127,7 @@ def main() -> None:
     fdocs = query.filter_docs(docs, layer=layer, project=project, kind=kind, stage=stage)
     st.sidebar.caption(f"{len(fdocs)} of {len(docs)} nodes match")
 
-    t_over, t_search, t_browse, t_gaps = st.tabs(["Overview", "Search", "Browse", "Gaps"])
+    t_over, t_search, t_browse, t_gaps, t_map = st.tabs(["Overview", "Search", "Browse", "Gaps", "Map"])
     chosen = None
 
     with t_over:
@@ -158,6 +189,9 @@ def main() -> None:
         rows = [{"rule": g["message"], "artifact": g["label"], "project": g["project"], "file": g["source_file"]}
                 for g in shown_gaps]
         chosen = table(rows, "gaps_tbl", [g["node"] for g in shown_gaps]) or chosen
+
+    with t_map:
+        map_tab(M, layer, project, kind, stage, chosen)
 
     if chosen and chosen in M:
         st.session_state["node"] = chosen

@@ -407,6 +407,29 @@ def cmd_ui(args) -> None:
     raise SystemExit(subprocess.call(cmd))
 
 
+def cmd_viz(args) -> None:
+    from . import viz
+    if args.list_engines:
+        for name, spec in viz.ENGINES.items():
+            ok, why = spec["ready"]()
+            print(f"{name:<10} {'ok ' if ok else '!! '} {spec['about']}" + ("" if ok else f"  [{why}]")
+                  + ("  (default)" if name == viz.DEFAULT_ENGINE else ""))
+        return
+    graph = Path(args.graph) if args.graph else paths.out_dir() / "graph.json"
+    if not graph.exists():
+        raise SystemExit(f"workgraph: no graph at {graph}; run `workgraph build` first")
+    M = query.load_graph(graph)
+    try:
+        out, note, n = viz.render(M, args.engine, args.out, layer=args.layer, project=args.project, kind=args.kind,
+                                  stage=args.stage, node=args.node, hops=args.hops, include_code=args.all, hubs=args.hubs,
+                                  max_nodes=args.max_nodes)
+    except (ValueError, RuntimeError) as e:
+        raise SystemExit(f"workgraph: {e}")
+    print(f"{args.engine}: {n} nodes -> {out}" + (f"\n  {note}" if note else ""))
+    if not args.no_open:
+        viz.open_in_browser(out)
+
+
 def cmd_clones(args) -> None:
     ws, M, _, _ = _build(args)
     groups = M.graph.get("clones", [])
@@ -545,6 +568,20 @@ def main(argv: list[str] | None = None) -> None:
     s = usub.add_parser("context", help="what the graph knows about the project at PATH (default: current folder)")
     s.add_argument("path", nargs="?", default=".")
     s.set_defaults(fn=cmd_context)
+    s = sub.add_parser("viz", help="draw the graph as a file you can open: cytoscape (default), pyvis, graphify, graphviz")
+    s.add_argument("--engine", default="cytoscape", choices=["cytoscape", "pyvis", "graphify", "graphviz"],
+                   help="drawing engine (default cytoscape: interactive, bundled, works offline)")
+    s.add_argument("--list-engines", action="store_true", help="show the engines and whether each is ready")
+    s.add_argument("--layer"); s.add_argument("--project"); s.add_argument("--kind"); s.add_argument("--stage")
+    s.add_argument("--node", help="draw this node (id or exact label) and its neighbourhood")
+    s.add_argument("--hops", type=int, default=2, help="neighbourhood radius for --node (default 2)")
+    s.add_argument("--all", action="store_true", help="include symbol, external and rationale nodes (large)")
+    s.add_argument("--hubs", action="store_true", help="keep the in_stage / belongs_to edges to stage and project hubs")
+    s.add_argument("--max-nodes", type=int, default=400, help="keep the best-connected N nodes (default 400)")
+    s.add_argument("-o", "--out", help="output file (default <home>/out/graph-<engine>.html)")
+    s.add_argument("--no-open", action="store_true", help="write the file but do not open a browser")
+    s.add_argument("--graph", help="graph file (default: <home>/out/graph.json)")
+    s.set_defaults(fn=cmd_viz)
     s = sub.add_parser("ui", help="open the web app to review and search the graph")
     s.add_argument("--framework", choices=["streamlit"], default="streamlit", help="UI framework (only streamlit so far)")
     s.add_argument("--graph", help="graph file (default: <home>/out/graph.json)")

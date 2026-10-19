@@ -41,6 +41,7 @@ Issues = "https://github.com/digital-duck/work-graph/issues"
 mcp = ["mcp"]
 ui = []          # kept so `pip install workgraph[ui]` still works: streamlit is a default dependency now
 semantic = []    # same: sentence-transformers is a default dependency now
+viz = ["pyvis"]
 bedrock = ["boto3"]
 leiden = ["graspologic; python_version < '3.13'"]
 dev = ["pytest"]
@@ -49,7 +50,7 @@ dev = ["pytest"]
 workgraph = "workgraph.cli:main"
 
 [tool.setuptools.package-data]
-workgraph = ["domains/*.yaml", "data/*.md"]
+workgraph = ["domains/*.yaml", "data/*.md", "data/viz/*.js"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

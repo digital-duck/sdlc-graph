@@ -283,6 +283,7 @@ A reference to something that does not exist (`REQ-099` above) is reported as a 
 | `workgraph search QUERY` | keyword search over the built graph; `--semantic` ranks by meaning (see below) |
 | `workgraph show NODE` | one node's attributes and links (a node id, or a label such as `REQ-002`) |
 | `workgraph ui` | open the Streamlit app to review and query the graph |
+| `workgraph viz [--engine E]` | draw the graph (or a filtered part) as an HTML or SVG file: `cytoscape` (default, offline), `pyvis`, `graphify`, `graphviz`; `--layer/--project/--kind/--stage`, `--node X --hops N`, `--max-nodes`, `--all`, `--list-engines` |
 | `workgraph import-claude` | backfill from Claude Code: track the projects it has worked in and load its session metadata (dry run unless `--apply`) |
 | `workgraph dump -o FILE` | pack your authored graph data into a tar.gz (a USB stick), without the database |
 | `workgraph load FILE` | merge such a tar.gz into this machine |
@@ -352,7 +353,9 @@ Keyword search ranks matches in a node's name above matches in its path, summary
 | `sbert` | nothing extra: sentence-transformers is installed with workgraph | sentence-transformers, `all-MiniLM-L6-v2` (downloaded once from Hugging Face). Runs on the CPU by default; set `WORKGRAPH_EMBED_DEVICE=cuda` to use a GPU |
 | `tfidf` | nothing | **lexical** (shared words), not meaning; used as the fallback, and the output says so |
 
-`workgraph ui` is part of the normal install. It has an Overview (counts per layer, project and kind), Search (keyword or semantic, with the backend shown), Browse and Gaps tabs. Click a row to see a node's attributes, its links in and out, and a diagram of its neighbourhood. Sidebar filters (layer, project, kind, stage) apply everywhere, and *Reload* picks up a new build.
+To see the graph as a picture, `workgraph viz` writes an interactive page (default engine `cytoscape`, works offline) of a readable subset: no code symbols, no stage/project hub edges, the 400 best-connected nodes. Narrow it with `--layer product`, `--project NAME` or `--node "Checkout" --hops 2`; choose another engine with `--engine pyvis|graphify|graphviz` (`pyvis` needs `pip install 'workgraph[viz]'`). Details: docs/DEV/README-vis.md.
+
+`workgraph ui` is part of the normal install. It has an Overview (counts per layer, project and kind), Search (keyword or semantic, with the backend shown), Browse, Gaps and Map tabs. Map draws the graph (the same page as `workgraph viz`) using the sidebar filters; select a node first to draw only its neighbourhood. Click a row to see a node's attributes, its links in and out, and a diagram of its neighbourhood. Sidebar filters (layer, project, kind, stage) apply everywhere, and *Reload* picks up a new build.
 
 ### Using workgraph as the memory of Claude Code
 

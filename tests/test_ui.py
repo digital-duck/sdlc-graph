@@ -29,6 +29,7 @@ def test_app_overview_keyword_and_semantic_search(monkeypatch):
     assert not at.exception and any("results" in c.value for c in at.caption)
     at.radio[0].set_value("Semantic").run()
     assert not at.exception and any("TF-IDF" in c.value for c in at.caption)
+    assert any("edges." in c.value and "workgraph viz --engine" in c.value for c in at.caption)     # the Map tab drew a graph
 
 
 def test_app_without_a_graph_shows_a_message():
