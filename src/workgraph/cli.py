@@ -10,7 +10,8 @@ import networkx as nx
 
 from .analyze import find_gaps
 from . import paths
-from .domain import Domain, Workspace, available_domains, custom_domain_files
+from . import layers
+from .domain import Domain, Workspace, available_domains, custom_domain_files, validate_pack
 from .sources import workspace_from_sources
 from .llm import BILLING, check_backend, resolve_backend
 from .pipeline import build_workspace, stage_summary
@@ -63,6 +64,46 @@ def cmd_domains(args) -> None:
         d = Domain.load(name)
         mark = "  (custom)" if name in custom_domain_files() else ""
         print(f"{name:<11} {d.label}: " + " → ".join(d.stages) + mark)
+
+
+def cmd_layers(args) -> None:
+    """Print the layer graph: coarsest layer first, its dependencies, and the counts of the last build."""
+    G = layers.layer_graph()
+    out = Path(args.out) if args.out else None
+    meta = layers.load_meta(out) if layers.available(out) else None
+    counts = {x["id"]: x for x in meta["layers"]} if meta else {}
+    print("layers, coarsest first (rank 0 = finest):")
+    for n in layers.by_coarseness(G):
+        c = counts.get(n)
+        print(f"  {n:<9} rank {G.nodes[n]['rank']}" + (f"   {c['nodes']} nodes, {c['edges']} edges" if c else ""))
+    print("dependencies (source points at the coarser target):")
+    deps = {(x["source"], x["target"], x["relation"]): x["edges"] for x in meta["dependencies"]} if meta else {}
+    for u, v, d in G.edges(data=True):
+        for r in d["relations"]:
+            n = deps.get((u, v, r))
+            print(f"  {u} -{r}-> {v}" + (f"   {n} edges" if n is not None else ""))
+    if meta and meta["undeclared"]:
+        print("cross-layer edges outside the declared dependencies (informational):")
+        for x in meta["undeclared"]:
+            print(f"  {x['source']} -{x['relation']}-> {x['target']}   {x['edges']} edges")
+    if not meta:
+        print("(no build found: run `workgraph build` to see counts)")
+
+
+def cmd_validate_pack(args) -> None:
+    """Check domain packs (files or names) and list every problem; exit 1 if any pack has one."""
+    bad = 0
+    for pack in args.pack:
+        errs = validate_pack(pack)
+        if errs:
+            bad += 1
+            print(f"[!!] {pack}: {len(errs)} problem(s)")
+            for e in errs:
+                print(f"     - {e}")
+        else:
+            print(f"[ok] {pack}")
+    if bad:
+        raise SystemExit(1)
 
 
 def cmd_llm(args) -> None:
@@ -121,9 +162,9 @@ def cmd_build(args) -> None:
         print(f"[{dom}]")
         for s in ws.domains[dom].stages:
             print(f"  {s:<12} {stages.get(s, {})}")
-    layers = layer_summary(M)
-    if len(layers) > 1:
-        print("layers: " + ", ".join(f"{k} {v}" for k, v in sorted(layers.items())))
+    counts = layer_summary(M)
+    if len(counts) > 1:
+        print("layers: " + ", ".join(f"{k} {v}" for k, v in sorted(counts.items())))
     clones = M.graph.get("clones", [])
     if clones:
         print(f"cross-project: {sum(g['identical'] for g in clones)} identical, "
@@ -135,6 +176,8 @@ def cmd_build(args) -> None:
     with args.progress.phase("writing graph.json", "write graph"):
         (out / "graph.json").write_text(json.dumps(nx.node_link_data(M, edges="edges"), default=str), encoding="utf-8")
     print(f"wrote {out / 'graph.json'}")
+    with args.progress.phase("writing layer partitions", "write layers"):
+        print(f"wrote {layers.write_partitions(M, out / 'layers')}")
     if args.progress.enabled:
         print(args.progress.table())          # where the time went
 
@@ -503,13 +546,19 @@ def main(argv: list[str] | None = None) -> None:
         epilog="Run `workgraph COMMAND -h` for the options of one command. Guides: docs/GUIDE in the repository.")
     sub = ap.add_subparsers(dest="cmd", required=True, title="commands", metavar="COMMAND")
     utils = sub.add_parser("utils", formatter_class=_Help,
-                           help="helper commands (check, claude-setup, clones, context, convert, doctor, domains, show-llm)",
+                           help="helper commands (check, claude-setup, clones, context, convert, doctor, domains, layers, show-llm, validate-pack)",
                            description="Helper commands: diagnostics, validation, conversion and setup.")
     usub = utils.add_subparsers(dest="util", required=True, title="utils", metavar="SUBCOMMAND")
     s = usub.add_parser("check", help="validate layer files and cross-graph references")
     s.add_argument("-c", "--config", help="workspace file (default: ./workspace.yaml, else <home>/workspace.yaml)")
     s.add_argument("--assign-uids", action="store_true", help="write a uid into layer nodes that lack one")
     s.set_defaults(fn=cmd_check)
+    s = usub.add_parser("layers", help="show the layer graph (layers as nodes, dependencies as edges) and build counts")
+    s.add_argument("-o", "--out", help="layer partitions folder (default: <home>/out/layers)")
+    s.set_defaults(fn=cmd_layers)
+    s = usub.add_parser("validate-pack", help="check domain packs (files or names) and list every problem")
+    s.add_argument("pack", nargs="+", help="a pack file (.yaml) or the name of a built-in or custom pack")
+    s.set_defaults(fn=cmd_validate_pack)
     s = usub.add_parser("convert", help="convert a layer file between JSON and YAML, keeping YAML comments")
     s.add_argument("file")
     s.add_argument("-o", "--out")

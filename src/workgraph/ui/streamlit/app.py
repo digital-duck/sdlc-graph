@@ -9,7 +9,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from workgraph import paths, query, viz
+from workgraph import layers, paths, query, viz
 from workgraph.domain import Workspace
 
 st.set_page_config(page_title="Workgraph", page_icon="🕸️", layout="wide")
@@ -47,7 +47,7 @@ def table(rows: list[dict], key: str, ids: list[str]) -> str | None:
     """Show rows; return the id of the selected row (single selection)."""
     if not rows:
         st.info("Nothing to show.")
-        return None
+        return
     ev = st.dataframe(pd.DataFrame(rows), **WIDE, hide_index=True, on_select="rerun",
                       selection_mode="single-row", key=key)
     sel = ev.selection.rows if ev and ev.selection else []
@@ -100,6 +100,83 @@ def map_tab(M, layer, project, kind, stage, chosen=None) -> None:
         components.html(page, height=700, scrolling=False)
 
 
+@st.cache_resource(show_spinner="Loading layer…")
+def load_layer(out: str, name: str, mtime: float):
+    return layers.load_layer(name, out)
+
+
+def canvas(sub, note: str, *, mark: set[str], title: str, height: int) -> None:
+    page = viz.cytoscape_html(sub, note, mark=mark, title=title)
+    if hasattr(st, "iframe"):
+        st.iframe(page, height=height)
+    else:
+        import streamlit.components.v1 as components
+        components.html(page, height=height, scrolling=False)
+
+
+def layers_tab(M, gp: Path) -> None:
+    """Two canvases. The parent layer is drawn on top; pick a node in it and the child graph below shows what the
+    finer layer holds under that node (a product's repositories with their files and relations). Only the two
+    partitions involved are loaded. Its pick is its own: it does not drive the node panel below the tabs."""
+    out = gp.parent / "layers"
+    if not layers.available(out):
+        st.info(f"No layer partitions at {out}. `workgraph build` writes them; or create them from this graph now.")
+        if st.button("Create layer partitions from this graph"):
+            layers.write_partitions(M, out)
+            st.rerun()
+        return
+    G, meta = layers.layer_graph(), layers.load_meta(out)
+    counts = {x["id"]: x["nodes"] for x in meta["layers"]}
+    with st.expander("Layer graph: coarse at the top; an arrow points from a layer to the coarser layer it refers to"):
+        st.graphviz_chart(layers.to_dot(G, meta), **WIDE)
+        if meta["undeclared"]:
+            st.caption("Cross-layer edges outside the declared dependencies: "
+                       + ", ".join(f"{x['source']} -{x['relation']}-> {x['target']} ({x['edges']})" for x in meta["undeclared"]))
+
+    parents = [n for n in layers.by_coarseness(G) if layers.finer(G, n) and counts.get(n)]
+    if not parents:
+        st.info("No layer has a finer layer with nodes to show.")
+        return
+    start = min(parents, key=lambda n: (G.nodes[n]["rank"] or 99, n))      # the layer just above the finest
+    c1, c2, c3 = st.columns([1, 1, 2])
+    parent = c1.selectbox("Parent layer", parents, index=parents.index(start), key="layers_parent",
+                          format_func=lambda n: f"{n} ({counts[n]} nodes)")
+    kids = [n for n in layers.finer(G, parent) if counts.get(n)]
+    if not kids:
+        st.info(f"`{parent}` has no finer layer with nodes.")
+        return
+    child = c2.selectbox("Child layer", kids, key="layers_child", format_func=lambda n: f"{n} ({counts[n]} nodes)")
+    P = load_layer(str(out), parent, (out / f"{parent}.json").stat().st_mtime)
+    ids = sorted(P.nodes, key=lambda n: (P.nodes[n].get("kind", ""), P.nodes[n].get("label", n)))
+    node = c3.selectbox("Node in the parent layer", ids, key=f"layers_node_{parent}",
+                        format_func=lambda n: f"{P.nodes[n].get('label', n)}  [{P.nodes[n].get('kind', '')}]")
+
+    st.markdown(f"**Parent: `{parent}`** ({P.number_of_nodes()} nodes). The ringed node is the one selected below; "
+                "click nodes in the picture to inspect them.")
+    psub = P if P.number_of_nodes() <= viz.DEFAULT_MAX_NODES else P.subgraph(
+        sorted(P.nodes, key=lambda n: (n == node, P.degree(n)), reverse=True)[:viz.DEFAULT_MAX_NODES]).copy()
+    canvas(psub, f"layer {parent}", mark={node}, title=f"parent layer: {parent}", height=420)
+
+    sub = layers.below(node, child, out)
+    code = st.checkbox("Symbols and code", key="layers_code", help="Include symbol, external and rationale nodes (many)")
+    shown, note = viz.select(sub, include_code=code, hubs=False)
+    seeds = {n for n, d in sub.nodes(data=True) if d.get("seed")}
+    st.markdown(f"**Child: `{child}` under {P.nodes[node].get('label', node)}** "
+                f"({sub.number_of_nodes()} nodes, {sub.number_of_edges()} edges; loaded `{parent}` and `{child}` only).")
+    if not shown.number_of_nodes():
+        st.info(f"Nothing in `{child}` is linked to this node or to anything inside it.")
+    else:
+        canvas(shown, note, mark=seeds, title=f"child layer: {child}", height=520)
+    with st.expander("Neighbours by coarseness"):
+        ctx = layers.context(node, out)
+        for key, title in (("coarser", "Coarser"), ("finer", "Finer"), ("same", "Same layer"), ("beside", "Beside")):
+            if ctx[key]:
+                st.markdown(f"{title} ({len(ctx[key])})")
+                st.dataframe(pd.DataFrame([{"relation": ("→ " if x["direction"] == "out" else "← ") + x["relation"],
+                                            "layer": x["layer"], "kind": x["kind"], "node": x["label"], "id": x["id"]}
+                                           for x in ctx[key]]), **WIDE, hide_index=True)
+
+
 # Streamlit sizes most text in rem, so raising the root size scales the whole app (default is 16px).
 FONT_CSS = "<style>html { font-size: 19px; } [data-testid='stDataFrame'] { font-size: 1rem; }</style>"
 
@@ -138,7 +215,7 @@ def main() -> None:
     fdocs = query.filter_docs(docs, layer=layer, project=project, kind=kind, stage=stage)
     st.sidebar.caption(f"{len(fdocs)} of {len(docs)} nodes match")
 
-    t_over, t_search, t_browse, t_gaps, t_map = st.tabs(["Overview", "Search", "Browse", "Gaps", "Map"])
+    t_over, t_search, t_browse, t_gaps, t_map, t_layers = st.tabs(["Overview", "Search", "Browse", "Gaps", "Map", "Layers"])
     chosen = None
 
     with t_over:
@@ -203,6 +280,9 @@ def main() -> None:
 
     with t_map:
         map_tab(M, layer, project, kind, stage, chosen)
+
+    with t_layers:
+        layers_tab(M, gp)
 
     if chosen and chosen in M:
         st.session_state["node"] = chosen

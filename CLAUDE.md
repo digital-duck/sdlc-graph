@@ -25,6 +25,8 @@ workgraph gaps  -c examples/workspace.yaml
 workgraph utils clones -c examples/workspace.yaml
 workgraph utils check -c examples/workspace.yaml          # layer files + cross-graph references (helper commands live under `utils`; `llm` is `utils show-llm`; export/import are `dump`/`load`)
 workgraph utils convert examples/graphs/org.json          # JSON <-> YAML via the comment store
+workgraph utils layers                                    # the layer graph (layers as nodes) with the last build's counts
+workgraph utils validate-pack sdlc ./my-pack.yaml         # every problem in a domain pack, exit 1 if any
 workgraph open --semantic --adapter cc_cli -c examples/acme-shop/workspace.yaml   # LLM work items
 workgraph utils show-llm -c workspace.yaml       # resolved backend / billing / readiness per processor
 ```
@@ -45,6 +47,8 @@ Pipeline (`src/workgraph/pipeline.py::build_workspace`): for each project in a `
 `examples/acme-shop` (sdlc) and `examples/rq-demo` (research) contain deliberate gaps that tests and demos rely on; changing them can break tests.
 
 **Layers** (design: `docs/DEV/README-design.md`): besides the repo graph, `graphs/*.json` next to the workspace file hold org/product/process layers (`schema.py` validates; ids are `<layer>:<path>`, nodes carry a `uid` used only for rename hints). `refs.merge_layers` runs at the end of `build_workspace`: it adds `process:<domain>` nodes from the packs, resolves cross-layer edges (including `/**` sub-graph endpoints) and tags every node with `layer`. JSON is canonical and what the loader reads; YAML is for review. `convert.py` moves between them, saving YAML comments in the database (`workgraph.sqlite3`) (`store.py`) anchored by item id so they are restored on JSON -> YAML.
+
+**Layer graph** (`layers.py`, design: `docs/DEV/README-design.md` section 15): the layers themselves are nodes of a small graph derived from `schema.py` (`LAYER_KINDS`, `RELATION_RULES`, `BUILD_RELATIONS`); dependencies are edges and `rank` (coarseness, finest 0) is computed, never stored. `build` also writes `<out>/layers/` (`layers.json`, one `<layer>.json` each, `cross.json`), and `layers.load_layer/load_scope/context/below` read only the partitions they need; the Streamlit Layers tab (parent canvas, child canvas) is built on them. Say "layered graph", not "leveled" or "macro/micro". `workgraph utils validate-pack` (`domain.validate_pack`) reports every problem in a domain pack.
 
 **Home folder** (`paths.py`): all data lives under `$WORKGRAPH_HOME` (default `~/workgraph`): `workspace.yaml`, `custom/` (everything the user authors: `custom/graphs/` layer files and `custom/domains/` packs (looked up by name, override built-ins), with a README; old `<home>/graphs/` is moved there by `init_home`), `workgraph.sqlite3` (the database; top of the home folder, never inside `graphs/` or `sync/`), `sync/` (git tree for `syncing.py`), `out/graph.json`, `cache/` (LLM results and graphify's AST cache, passed as `cache_root` so nothing is written into projects or the cwd), `src/` (URL clones). Workspace resolution: `--src` > `-c` > `./workspace.yaml` > `<home>/workspace.yaml`. Tests redirect the home via an autouse fixture in `tests/conftest.py`.
 

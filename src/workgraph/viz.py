@@ -122,6 +122,7 @@ const cy = cytoscape({container: document.getElementById('cy'), elements: data, 
       'curve-style':'bezier', 'arrow-scale':0.8}},
     {selector:'edge[confidence != "EXTRACTED"]', style:{'line-style':'dashed'}},
     {selector:'.faded', style:{opacity:0.12}},
+    {selector:'node[mark]', style:{'border-width':4, 'border-color':'#e5484d'}},
     {selector:'node:selected', style:{'border-width':3, 'border-color':'#e5484d'}}]});
 function layout(){
   const l = cy.layout({name: document.getElementById('layout').value, animate:false, padding:30, nodeRepulsion: 9000, fit:true});
@@ -168,15 +169,17 @@ def _size(sub: nx.MultiDiGraph, n: str) -> int:
     return min(14 + 3 * int(dict(sub.degree)[n] ** 0.5 * 2), 46)
 
 
-def cytoscape_html(sub: nx.MultiDiGraph, note: str = "") -> str:
+def cytoscape_html(sub: nx.MultiDiGraph, note: str = "", *, mark: set[str] | None = None, title: str = "workgraph") -> str:
+    """The self-contained page. `mark` ids get a red ring (the node a view is about); `title` heads the bar."""
     elements = [{"data": {"id": n, "label": _label(d, n), "color": color(d), "size": _size(sub, n), "info": _title(n, d),
-                          "shape": "diamond" if d.get("kind") in STRUCTURE_KINDS else "ellipse"}}
+                          "shape": "diamond" if d.get("kind") in STRUCTURE_KINDS else "ellipse",
+                          **({"mark": 1} if mark and n in mark else {})}}
                 for n, d in sub.nodes(data=True)]
     elements += [{"data": {"id": f"e{i}", "source": u, "target": v, "relation": d.get("relation", ""),
                            "confidence": d.get("confidence", "EXTRACTED")}}
                  for i, (u, v, d) in enumerate(sub.edges(data=True))]
     js = (resources.files("workgraph") / "data" / "viz" / "cytoscape.min.js").read_text(encoding="utf-8")
-    page = (CYTOSCAPE_PAGE.replace("__TITLE__", "workgraph").replace("__NOTE__", html.escape(note))
+    page = (CYTOSCAPE_PAGE.replace("__TITLE__", html.escape(title)).replace("__NOTE__", html.escape(note))
             .replace("__LEGEND__", _legend(sub))
             .replace("__DATA__", json.dumps(elements).replace("</", "<\\/"))
             .replace("__CYTOSCAPE__", js.replace("</script", "<\\/script")))

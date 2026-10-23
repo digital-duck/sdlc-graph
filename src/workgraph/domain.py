@@ -138,6 +138,115 @@ class Domain:
         return {"nodes": nodes, "edges": edges, "hyperedges": []}
 
 
+def _resolve_pack(name_or_path: str | Path) -> Path:
+    p = Path(name_or_path)
+    if p.suffix in (".yaml", ".yml"):
+        return p
+    return custom_domain_files().get(str(name_or_path)) or DOMAINS_DIR / f"{name_or_path}.yaml"
+
+
+def validate_pack(name_or_path: str | Path) -> list[str]:
+    """Every problem in a domain pack, not just the first (`Domain.load` stops at the first).
+    Empty list = the pack loads. Accepts a file path or a pack name (your own packs win)."""
+    from .processors import REGISTRY       # imported here: processors imports this module
+    p = _resolve_pack(name_or_path)
+    if not p.is_file():
+        return [f"pack not found: {p}"]
+    try:
+        raw = yaml.safe_load(p.read_text(encoding="utf-8"))
+    except yaml.YAMLError as e:
+        return [f"invalid YAML: {e}"]
+    if not isinstance(raw, dict):
+        return ["the top level must be a mapping"]
+    errs: list[str] = []
+
+    def items(key: str, required: bool = False) -> list:
+        v = raw.get(key)
+        if v is None:
+            if required:
+                errs.append(f"`{key}` is required")
+            return []
+        if not isinstance(v, list):
+            errs.append(f"`{key}` must be a list")
+            return []
+        return v
+
+    if not isinstance(raw.get("domain"), str) or not raw.get("domain"):
+        errs.append("`domain` is required and must be a name")
+    if "label" in raw and not isinstance(raw["label"], str):
+        errs.append("`label` must be a string")
+
+    stage_ids: list[str] = []
+    for i, st in enumerate(items("stages", required=True)):
+        if not isinstance(st, dict) or not isinstance(st.get("id"), str):
+            errs.append(f"stages[{i}]: needs a string `id`")
+        elif st["id"] in stage_ids:
+            errs.append(f"stages[{i}]: duplicate stage id {st['id']!r}")
+        else:
+            stage_ids.append(st["id"])
+    if "stages" in raw and isinstance(raw["stages"], list) and not raw["stages"]:
+        errs.append("`stages` must not be empty")
+
+    def known(stage, where: str) -> None:
+        if stage not in stage_ids:
+            errs.append(f"{where} references unknown stage {stage!r}; stages are {stage_ids}")
+
+    for i, st in enumerate(items("stages")):
+        if isinstance(st, dict):
+            nxt = st.get("next", [])
+            if not isinstance(nxt, list):
+                errs.append(f"stages[{i}] ({st.get('id')}): `next` must be a list of stage ids")
+            else:
+                for n in nxt:
+                    known(n, f"stage {st.get('id')}.next")
+
+    relations: set[str] = set()
+    for i, r in enumerate(items("flow_relations")):
+        if not isinstance(r, dict) or not all(k in r for k in ("from", "to", "relation")):
+            errs.append(f"flow_relations[{i}]: needs `from`, `to` and `relation`")
+            continue
+        known(r["from"], f"flow_relations[{i}].from")
+        known(r["to"], f"flow_relations[{i}].to")
+        relations.add(r["relation"])
+
+    for i, e in enumerate(items("expectations")):
+        if not isinstance(e, dict) or not all(k in e for k in ("stage", "needs", "message")):
+            errs.append(f"expectations[{i}]: needs `stage`, `needs` and `message`")
+            continue
+        known(e["stage"], f"expectations[{i}].stage")
+        if relations and e["needs"] not in relations:
+            errs.append(f"expectations[{i}]: `needs` {e['needs']!r} is not a flow relation {sorted(relations)}")
+        if e.get("direction", "in") not in ("in", "out"):
+            errs.append(f"expectations[{i}]: `direction` must be `in` or `out`")
+
+    defaults = 0
+    for i, c in enumerate(items("classifiers")):
+        if not isinstance(c, dict) or "stage" not in c:
+            errs.append(f"classifiers[{i}]: needs `stage`")
+            continue
+        known(c["stage"], f"classifiers[{i}].stage")
+        if c.get("default"):
+            defaults += 1
+        elif not isinstance(c.get("globs"), list) or not c["globs"]:
+            errs.append(f"classifiers[{i}]: needs a non-empty `globs` list, or `default: true`")
+    if defaults > 1:
+        errs.append("more than one classifier is marked `default`")
+
+    for i, pr in enumerate(items("processors")):
+        if not isinstance(pr, dict) or not all(isinstance(pr.get(k), str) for k in ("name", "use")):
+            errs.append(f"processors[{i}]: needs string `name` and `use`")
+            continue
+        if pr["use"] not in REGISTRY:
+            errs.append(f"processors[{i}] ({pr['name']}): unknown `use` {pr['use']!r}; allowed: {sorted(REGISTRY)}")
+        for key in ("match", "kinds"):
+            if key in pr and not isinstance(pr[key], list):
+                errs.append(f"processors[{i}] ({pr['name']}): `{key}` must be a list")
+
+    if "ignore" in raw and not (isinstance(raw["ignore"], list) and all(isinstance(g, str) for g in raw["ignore"])):
+        errs.append("`ignore` must be a list of glob strings")
+    return errs
+
+
 @dataclass
 class Project:
     name: str

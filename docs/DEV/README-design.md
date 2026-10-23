@@ -19,6 +19,10 @@ Legend: **built** = implemented and covered by tests or a live run; **partial** 
 | Layers | Layer files: schema, validation, referential integrity (`check`) | built | tests |
 | Layers | Product, org and process layers; cross-layer relations; pack-derived `process:<domain>` templates | built | tests; examples in `examples/graphs/` |
 | Layers | Sub-graph references (`/**`) | built | test |
+| Layers | Layer graph: layers are nodes, layer dependencies are edges, coarseness is relative (section 15) | built | `layers.py`; tests; `workgraph utils layers` |
+| Layers | Per-layer partitions in `out/layers/` and scoped loading, so a view loads only the layers it needs | built | tests check that partitions add up to `graph.json` and that a view loads only the partitions it needs. Search and the older tabs still load the whole `graph.json` |
+| UI | Layers tab: parent canvas and child canvas (pick a node above, see what the finer layer holds under it below) | built | headless app tests; **not looked at in a browser** |
+| Packs | `utils validate-pack` lists every problem in a domain pack | built | tests; all shipped packs pass |
 | Layers | `uid` rename hints; `check --assign-uids` | built | test; hints depend on the store having seen the old id |
 | Layers | Process instances (a product's status within a process template) | not built | only templates and the `follows` link exist |
 | Layers | Per-layer vocabulary as YAML packs | not built | kinds and relations are Python constants in `schema.py` |
@@ -311,3 +315,79 @@ Limits: `sync pull` uses a fast-forward-only git pull, so if the repository's hi
 - Whether comments should sync as deletions as well as additions (today a deleted comment returns from the other machine).
 - Whether a team or enterprise mode is wanted at all, which would mean a server with accounts and access control rather than files.
 - Relationship to the `primitives / concepts / applications` three-layer `graph.yaml` of the ZiNets ecosystem.
+
+## 15. The layered graph: layers as nodes (built)
+
+Today the layers (repo, product, org, process) are a fixed list of names in `schema.py`, and everything lives in one in-memory graph (`graph.json`). That works for the examples and will not for a workspace with tens of thousands of files and symbols, where the UI would draw one hairball. The next step turns the layers themselves into data.
+
+### Idea
+
+Two graphs, as in a network protocol stack, where each layer talks to its neighbours through a defined interface and nobody hard-codes "the top" or "the bottom":
+
+- The **layer graph** is small and always in memory. Its **nodes are layers**; its **edges are layer dependencies** (which layer's nodes may point at which layer's nodes, and by what relation).
+- The **instance graph** is the knowledge graph as built today. Every node already carries a `layer` attribute naming a node of the layer graph.
+
+Terminology: this is a *layered* graph. We do not say macro/micro or levels 0 to N, because those numbers are fixed by the author, while here only the **relative** order matters: a layer is *coarser* than the layers that point at it, and *finer* than the layers it points at.
+
+### The layer graph
+
+Derived from the vocabulary in `schema.py` (single source of truth), not written twice:
+
+| Layer-graph element | Derived from | Example |
+|---|---|---|
+| node (a layer) | `LAYER_KINDS` plus the implicit `repo` layer | `repo`, `product`, `org`, `process` |
+| edge (dependency) | each cross-layer entry of `RELATION_RULES` | `repo` -`belongs_to`-> `product`; `product` -`owned_by`-> `org`; `product` -`follows`-> `process` |
+| edge attribute `relation` | the relation name | `belongs_to` |
+| node attribute `hierarchical` | the layer allows `part_of` (product, org, process) | true/false |
+| node attribute `rank` (coarseness) | longest path from a layer nothing points at; finest layer is 0 | repo 0, product 1, org 2, process 2 |
+
+`rank` is computed, never stored in a file. Adding a layer or a relation between two existing layers changes the ranks automatically. Equal ranks mean the layers are siblings, not ordered against each other (org and process).
+
+### Partitioned build output
+
+`build` keeps writing `graph.json` (search, the CLI and the existing tabs depend on it) and also writes a partitioned copy:
+
+```
+out/layers/
+  layers.json      the layer graph, with node and edge counts per layer
+  <layer>.json     nodes of that layer and the edges whose two ends are both in it
+  cross.json       edges whose ends are in different layers
+```
+
+`layers.load_layer(name)` reads one partition. `layers.load_scope(layers)` merges the named partitions plus the `cross.json` edges between them. A view that needs a node's surroundings first asks the layer graph which layers can be adjacent, then loads only those. The repo layer is the big one, so a question about teams and products never touches it.
+
+### Views
+
+The visualization follows the layer graph instead of drawing one hairball. The Layers tab of `workgraph ui` has:
+
+1. **The layer graph** (collapsed by default): layers with their node counts, coarse at the top, dependencies labelled with their relations and edge counts. Cross-layer edges that no declared dependency explains are listed under it.
+2. **A parent canvas**: pick a parent layer (default: the layer just above the finest) and a child layer among the finer layers that point at it. The parent layer is drawn as a graph; a node picker selects one node, shown with a red ring.
+3. **A child canvas below it**: what the child layer holds under that node, via `layers.below`: the child-layer nodes linked to the node or to anything inside it, plus what those contain (their own `part_of` descendants; for a project, every node of that project). For a product that is its repositories with their files, documents and relations. A checkbox adds symbols and code, which are hidden by default.
+4. **Neighbours by coarseness** (expander): the node's links grouped as coarser, finer, same layer or beside.
+
+Only the partitions a step needs are loaded: `below` reads the node's layer and the child layer, nothing else. The picture itself is the same bundled Cytoscape.js page the Map tab uses (`viz.cytoscape_html`, now with an optional ring for marked nodes). Limit: a click inside the canvas inspects a node but cannot change the selection in Streamlit, so the node is chosen with the picker.
+
+`BUILD_RELATIONS` in `schema.py` names the relations the build adds across layers (`in_stage`, `participates_in`: repo to process). They are not allowed in layer files but are part of the layer graph, which is why repo shows a dependency on process as well as on product.
+
+CLI: `workgraph utils layers` prints the layer graph with ranks and the counts of the last build. `workgraph viz --layer NAME` (existing) draws one layer.
+
+### What this does not change
+
+- `graph.json` stays the canonical built output, so nothing that reads it breaks.
+- Layer files, ids, uids and conversion are unchanged.
+- `part_of` still means containment inside one layer; a layer dependency is not `part_of`.
+
+### Honest limits
+
+- The build partitions after writing `graph.json`, and search and the older tabs still load the whole `graph.json`. The memory saving is therefore for the Layers tab only until search moves to the partitions.
+- Opening a repo node loads the whole repo partition. Sharding the repo layer by project is the next step if that gets large.
+- Not looked at in a real browser yet: the tests run the app headlessly.
+- The repo layer has its own coarse-to-fine structure (project, file, symbol). It stays one layer for now; splitting it by kind into sub-layers is the obvious next use of the same mechanism.
+- Per-layer vocabulary is still Python constants (open question in section 14).
+
+### Tests
+
+- layer graph derived from the vocabulary has the expected nodes, edges and ranks, and a new layer shifts ranks
+- partitions written by a build contain each node exactly once, `cross.json` contains exactly the cross-layer edges, and merging all partitions gives back `graph.json`
+- `load_scope` of two layers equals the induced subgraph of the full graph
+- the Layers tab renders for the example workspace

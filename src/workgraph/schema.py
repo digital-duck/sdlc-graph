@@ -25,6 +25,13 @@ RELATION_RULES = {
     "follows": ({"product"}, {"process"}),
 }
 
+# Relations the build itself adds across layers (every repo node is tagged with its stages). Not allowed
+# in layer files, but part of the layer graph, so the dependency between repo and process is visible.
+BUILD_RELATIONS = {
+    "in_stage": ({"repo"}, {"process"}),
+    "participates_in": ({"repo"}, {"process"}),
+}
+
 UID_RE = re.compile(r"^[0-9a-f]{8}$")
 
 
