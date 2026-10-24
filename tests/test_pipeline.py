@@ -13,8 +13,10 @@ def test_multi_domain_workspace_gaps():
     assert set(stage_summary(M)) == {"sdlc", "research"}
     got = {(g["domain"], g["message"], g["label"].split(":")[0]) for g in find_gaps(M, ws)}
     assert ("sdlc", "requirement has no design", "REQ-003") in got
-    assert ("sdlc", "requirement has no test", "REQ-002") in got
-    assert ("sdlc", "code file has no test", "checkout.py") in got
+    assert ("sdlc", "requirement has no test", "REQ-003") in got
+    # tests/test_checkout.py declares `# verifies: REQ-002`, so REQ-002 and src/checkout.py are covered, not gaps
+    assert ("sdlc", "requirement has no test", "REQ-002") not in got
+    assert not any(m == "code file has no test" for _, m, _ in got)
     assert ("research", "question has no hypothesis", "Q2") in got
     # covered items are not flagged
     assert not any(g[2] in ("REQ-001", "cart.py", "Q1", "H1") for g in got)
