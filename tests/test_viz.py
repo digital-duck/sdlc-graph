@@ -51,7 +51,7 @@ def test_cytoscape_page_is_self_contained(tmp_path):
     out, note, n = viz.render(graph(), "cytoscape", tmp_path / "g.html")
     page = out.read_text(encoding="utf-8")
     assert n == 4 and "cytoscape(" in page and 'src="http' not in page      # no CDN: the library is inlined
-    data = json.loads(re.search(r"const data = (\[.*?\]);\nconst dark", page, re.S).group(1).replace("<\\/", "</"))
+    data = json.loads(re.search(r"const data = (\[.*?\]);\nconst OPTS", page, re.S).group(1).replace("<\\/", "</"))
     assert {e["data"]["id"] for e in data if "source" not in e["data"]} == {"repo:a.py", "repo:b.py", "repo:c.py", "product:x"}
     assert any(e["data"].get("dashed") for e in data if "source" in e["data"])          # the INFERRED edge is dashed
 
