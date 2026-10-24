@@ -455,7 +455,7 @@ def cmd_viz(args) -> None:
     if args.list_engines:
         for name, spec in viz.ENGINES.items():
             ok, why = spec["ready"]()
-            print(f"{name:<10} {'ok ' if ok else '!! '} {spec['about']}" + ("" if ok else f"  [{why}]")
+            print(f"{name:<10} {'ok ' if ok else '!! '} {viz.hint(spec['about'])}" + ("" if ok else f"  [{viz.hint(why)}]")
                   + ("  (default)" if name == viz.DEFAULT_ENGINE else ""))
         return
     graph = Path(args.graph) if args.graph else paths.out_dir() / "graph.json"
@@ -469,7 +469,7 @@ def cmd_viz(args) -> None:
     except (ValueError, RuntimeError) as e:
         raise SystemExit(f"workgraph: {e}")
     print(f"{args.engine}: {n} nodes -> {out}" + (f"\n  {note}" if note else ""))
-    if not args.no_open:
+    if not args.no_open and viz.ENGINES[args.engine].get("open", True):
         viz.open_in_browser(out)
 
 
@@ -617,8 +617,8 @@ def main(argv: list[str] | None = None) -> None:
     s = usub.add_parser("context", help="what the graph knows about the project at PATH (default: current folder)")
     s.add_argument("path", nargs="?", default=".")
     s.set_defaults(fn=cmd_context)
-    s = sub.add_parser("viz", help="draw the graph as a file you can open: cytoscape (default), pyvis, graphify, graphviz")
-    s.add_argument("--engine", default="cytoscape", choices=["cytoscape", "pyvis", "graphify", "graphviz"],
+    s = sub.add_parser("viz", help="draw the graph as a file you can open: cytoscape (default), graphviz, mermaid, ascii, pyvis, graphify")
+    s.add_argument("--engine", default="cytoscape", choices=["cytoscape", "graphviz", "mermaid", "ascii", "pyvis", "graphify"],
                    help="drawing engine (default cytoscape: interactive, bundled, works offline)")
     s.add_argument("--list-engines", action="store_true", help="show the engines and whether each is ready")
     s.add_argument("--layer"); s.add_argument("--project"); s.add_argument("--kind"); s.add_argument("--stage")

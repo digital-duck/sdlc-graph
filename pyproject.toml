@@ -26,6 +26,7 @@ dependencies = [
     "ruamel.yaml",
     "graphifyy[sql]>=0.7.19",   # [sql]: tree-sitter grammar for .sql files
     "networkx",
+    "zinet>=0.2.0",             # graph drawing (workgraph viz, the Map tab) and the comment-preserving YAML
     "pyyaml",
     "streamlit",                # workgraph ui
     "sentence-transformers",    # workgraph search --semantic (pulls in PyTorch)
@@ -41,7 +42,7 @@ Issues = "https://github.com/digital-duck/work-graph/issues"
 mcp = ["mcp"]
 ui = []          # kept so `pip install workgraph[ui]` still works: streamlit is a default dependency now
 semantic = []    # same: sentence-transformers is a default dependency now
-viz = ["pyvis"]
+viz = ["zinet[pyvis]>=0.2.0"]
 bedrock = ["boto3"]
 leiden = ["graspologic; python_version < '3.13'"]
 dev = ["pytest"]
@@ -50,7 +51,7 @@ dev = ["pytest"]
 workgraph = "workgraph.cli:main"
 
 [tool.setuptools.package-data]
-workgraph = ["domains/*.yaml", "data/*.md", "data/viz/*.js"]
+workgraph = ["domains/*.yaml", "data/*.md"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -53,7 +53,7 @@ def test_cytoscape_page_is_self_contained(tmp_path):
     assert n == 4 and "cytoscape(" in page and 'src="http' not in page      # no CDN: the library is inlined
     data = json.loads(re.search(r"const data = (\[.*?\]);\nconst dark", page, re.S).group(1).replace("<\\/", "</"))
     assert {e["data"]["id"] for e in data if "source" not in e["data"]} == {"repo:a.py", "repo:b.py", "repo:c.py", "product:x"}
-    assert any(e["data"].get("confidence") == "INFERRED" for e in data)
+    assert any(e["data"].get("dashed") for e in data if "source" in e["data"])          # the INFERRED edge is dashed
 
 
 def test_graphviz_writes_svg_or_dot(tmp_path):
