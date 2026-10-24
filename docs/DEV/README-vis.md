@@ -56,7 +56,7 @@ backend, the JavaScript frontend and the process stages as separate clusters.
 
 | Engine | Output | Needs | Good for | Limits |
 |---|---|---|---|---|
-| **cytoscape** (default) | one HTML file | nothing: Cytoscape.js 3.30.2 (MIT) is bundled | everyday use; best scaling; works offline | built-in layouts only; styling is ours |
+| **cytoscape** (default) | one HTML file | nothing: Cytoscape.js 3.30.2 (MIT) is bundled in zinet | everyday use; best scaling; works offline | built-in layouts only; styling is ours |
 | **pyvis** | one HTML file | `pip install 'workgraph[viz]'` | quick physics-based exploration, drag nodes | slow and messy above about 1,000 nodes; dated look |
 | **graphify** | HTML | nothing (ships with graphify) | community-coloured overview; same look as graphify's own report | recomputes communities on the selected subgraph; graphify may refuse very large graphs |
 | **graphviz** | SVG | the `dot` program | small, static, printable diagrams | layout is slow and unreadable for hundreds of nodes; writes `.dot` text if `dot` is missing |
@@ -78,9 +78,8 @@ backend, the JavaScript frontend and the process stages as separate clusters.
 
 ## Layout of the code
 
-- `src/workgraph/viz.py`: `select()`, one `to_<engine>()` per engine, the `ENGINES` registry (function, extension,
-  readiness check, one-line description) and `render()`. No UI imports.
-- `src/workgraph/data/viz/cytoscape.min.js`: the bundled library (packaged through `package-data`).
+- `src/workgraph/viz.py`: `workgraph_style()`, `select()` (predicates over zinet's) and `render()`. No UI imports. The engines, the
+  `ENGINES` registry and the bundled Cytoscape.js now live in zinet (`zinet.vis`, shared with GraphLang); see its README.
 - `cli.py::cmd_viz`: the `viz` command. `ui/streamlit/app.py::map_tab`: the Map tab.
 - `tests/test_viz.py`: selection rules, every engine's output, the CLI.
 

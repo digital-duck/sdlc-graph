@@ -51,6 +51,7 @@ workgraph is a regular Python package. Install it from the clone (an editable in
 
 ```bash
 cd ~/projects/digital-duck/work-graph
+python -m pip install -e ../zinet   # first, from the sibling checkout, until zinet>=0.2.0 is on PyPI
 python -m pip install -e ".[dev]"
 workgraph utils doctor
 ```
