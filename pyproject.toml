@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "workgraph"
-version = "0.1.0"
+version = "0.2.0"
 description = "A knowledge layer beside Claude Code: a graph of your projects, lifecycle, products, teams and processes, with search, a Streamlit UI and private sync"
 readme = "README.md"
 license = {text = "Apache-2.0"}
